@@ -106,12 +106,14 @@ create policy "Admins can delete videos" on public.videos for delete using (
 -- Video watches: learners manage their own
 create policy "Learners manage own watches" on public.video_watches for all using (auth.uid() = user_id);
 
--- Quiz results: own data only; admins see all
+-- Quiz results: own data only; admins see all; authenticated users see all for leaderboard
 create policy "Users see own quiz results" on public.quiz_results for select using (auth.uid() = user_id);
 create policy "Users insert own quiz results" on public.quiz_results for insert with check (auth.uid() = user_id);
 create policy "Admins see all quiz results" on public.quiz_results for select using (
   exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
 );
+create policy "Authenticated users see quiz results for leaderboard" on public.quiz_results
+  for select using (auth.role() = 'authenticated');
 
 -- Progress: own data; parents see children; admins see all
 create policy "Users see own progress" on public.progress for select using (auth.uid() = user_id);

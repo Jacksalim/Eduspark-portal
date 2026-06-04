@@ -80,6 +80,29 @@ export async function fetchQuizResults(userId) {
   return data || []
 }
 
+export async function fetchLeaderboard(subject, grade) {
+  const { data, error } = await supabase
+    .from('quiz_results')
+    .select('user_id, percent, score, total, created_at, profiles(name)')
+    .eq('subject', subject)
+    .eq('grade', grade)
+    .order('percent', { ascending: false })
+    .order('created_at', { ascending: true })
+    .limit(200)
+  if (error) throw error
+
+  // Keep only each user's best attempt, then take top 10
+  const best = new Map()
+  for (const r of (data || [])) {
+    if (!best.has(r.user_id) || r.percent > best.get(r.user_id).percent) {
+      best.set(r.user_id, r)
+    }
+  }
+  return [...best.values()]
+    .sort((a, b) => b.percent - a.percent || a.score - b.score)
+    .slice(0, 10)
+}
+
 // ─── Progress ─────────────────────────────────────────────────────────────────
 async function upsertProgress(userId, subject, percent) {
   const { data: ex } = await supabase.from('progress').select('percent').eq('user_id', userId).eq('subject', subject).single()

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchVideos, fetchWatchedIds, markVideoWatched, saveQuizResult, fetchQuizResults, fetchProgress } from '../lib/supabase'
+import { fetchVideos, fetchWatchedIds, markVideoWatched, saveQuizResult, fetchQuizResults, fetchProgress, fetchLeaderboard } from '../lib/supabase'
 import { SUBJECTS, GRADES, Spinner, ProgressBar, StatCard, useToast } from '../components/ui'
 
 // ── AI Quiz Generation ────────────────────────────────────────────────────────
@@ -291,6 +291,119 @@ function ProgressSection({ profile }) {
   )
 }
 
+// ── Leaderboard Section ───────────────────────────────────────────────────────
+const MEDALS = ['🥇', '🥈', '🥉']
+
+function anonymise(name) {
+  if (!name) return 'Anonymous'
+  const parts = name.trim().split(' ')
+  return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0]
+}
+
+function LeaderboardSection({ profile, initialSubject, initialGrade }) {
+  const [subject, setSubject] = useState(initialSubject || 'Mathematics')
+  const [grade, setGrade]     = useState(initialGrade   || profile?.grade || '7')
+  const [board, setBoard]     = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    setBoard(null)
+    fetchLeaderboard(subject, grade)
+      .then(setBoard)
+      .catch(() => setBoard([]))
+      .finally(() => setLoading(false))
+  }, [subject, grade])
+
+  const myRank = board ? board.findIndex(r => r.user_id === profile?.id) : -1
+
+  return (
+    <div>
+      {/* Filters */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24, alignItems: 'flex-end' }}>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label style={{ fontSize: '.78rem', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>Grade</label>
+          <select className="form-control" value={grade} onChange={e => setGrade(e.target.value)} style={{ width: 130 }}>
+            {GRADES.map(g => <option key={g} value={g}>{g === 'R' ? 'Grade R' : `Grade ${g}`}</option>)}
+          </select>
+        </div>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label style={{ fontSize: '.78rem', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>Subject</label>
+          <select className="form-control" value={subject} onChange={e => setSubject(e.target.value)} style={{ width: 200 }}>
+            {Object.keys(SUBJECTS).map(s => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* My rank callout */}
+      {myRank >= 0 && board && (
+        <div style={{ marginBottom: 18, padding: '12px 18px', background: 'var(--teal-light, #e8f4f4)', border: '1px solid var(--teal)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: '1.4rem' }}>{myRank < 3 ? MEDALS[myRank] : '🎯'}</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '.92rem', color: 'var(--teal)' }}>
+              You are ranked #{myRank + 1} in Grade {grade} {subject}!
+            </div>
+            <div style={{ fontSize: '.8rem', color: '#555', marginTop: 2 }}>
+              Best score: {board[myRank].score}/{board[myRank].total} ({board[myRank].percent}%)
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loading && <Spinner label="Loading leaderboard…" />}
+
+      {!loading && board && board.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#aaa' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🏆</div>
+          <div style={{ fontWeight: 600 }}>No scores yet for Grade {grade} {subject}</div>
+          <div style={{ fontSize: '.85rem', marginTop: 6 }}>Be the first — take the quiz and claim the top spot!</div>
+        </div>
+      )}
+
+      {!loading && board && board.length > 0 && (
+        <div className="card" style={{ overflow: 'hidden' }}>
+          {/* Header row */}
+          <div style={{ background: 'var(--ink)', color: '#fff', display: 'grid', gridTemplateColumns: '48px 1fr 80px 80px', padding: '10px 20px', fontSize: '.75rem', fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase' }}>
+            <span>Rank</span><span>Learner</span><span style={{ textAlign: 'center' }}>Score</span><span style={{ textAlign: 'center' }}>%</span>
+          </div>
+          {board.map((r, i) => {
+            const isMe = r.user_id === profile?.id
+            return (
+              <div key={r.user_id} style={{
+                display: 'grid', gridTemplateColumns: '48px 1fr 80px 80px',
+                padding: '13px 20px', alignItems: 'center',
+                background: isMe ? 'rgba(26,107,107,.08)' : i % 2 === 0 ? '#fff' : '#fafbfc',
+                borderBottom: '1px solid var(--mist)',
+                borderLeft: isMe ? '3px solid var(--teal)' : '3px solid transparent',
+              }}>
+                <span style={{ fontSize: i < 3 ? '1.3rem' : '.95rem', fontWeight: 700, color: i < 3 ? undefined : '#aaa' }}>
+                  {i < 3 ? MEDALS[i] : `#${i + 1}`}
+                </span>
+                <div>
+                  <div style={{ fontWeight: isMe ? 700 : 600, fontSize: '.9rem', color: isMe ? 'var(--teal)' : 'var(--ink)' }}>
+                    {anonymise(r.profiles?.name)}{isMe && <span style={{ fontSize: '.75rem', marginLeft: 6, color: 'var(--teal)', fontWeight: 400 }}>(you)</span>}
+                  </div>
+                  <div style={{ fontSize: '.75rem', color: '#aaa', marginTop: 2 }}>Grade {grade}</div>
+                </div>
+                <div style={{ textAlign: 'center', fontWeight: 700, fontSize: '.88rem' }}>{r.score}/{r.total}</div>
+                <div style={{ textAlign: 'center' }}>
+                  <span className={`pill ${r.percent >= 70 ? 'pill-green' : r.percent >= 50 ? 'pill-amber' : 'pill-red'}`}>
+                    {r.percent}%
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <div style={{ marginTop: 16, fontSize: '.78rem', color: '#bbb', textAlign: 'center' }}>
+        Shows each learner's best score only · Names are anonymised for privacy
+      </div>
+    </div>
+  )
+}
+
 // ── Main Learner Portal ───────────────────────────────────────────────────────
 export default function LearnerPortal({ profile }) {
   const [section, setSection] = useState('lessons')
@@ -315,9 +428,10 @@ export default function LearnerPortal({ profile }) {
   }, [profile?.id])
 
   const sideItems = [
-    { id: 'lessons', icon: '▶️', label: 'Video Lessons' },
-    { id: 'quiz',    icon: '📝', label: 'Quizzes' },
-    { id: 'progress',icon: '📊', label: 'My Progress' },
+    { id: 'lessons',     icon: '▶️', label: 'Video Lessons' },
+    { id: 'quiz',        icon: '📝', label: 'Quizzes' },
+    { id: 'progress',    icon: '📊', label: 'My Progress' },
+    { id: 'leaderboard', icon: '🏆', label: 'Leaderboard' },
   ]
 
   return (
@@ -405,6 +519,7 @@ export default function LearnerPortal({ profile }) {
 
           {section === 'quiz' && <QuizSection profile={profile} />}
           {section === 'progress' && <ProgressSection profile={profile} />}
+          {section === 'leaderboard' && <LeaderboardSection profile={profile} initialSubject={subject} initialGrade={grade} />}
         </div>
       </div>
     </div>

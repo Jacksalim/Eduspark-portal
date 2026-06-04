@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { fetchChildrenForParent, fetchProgress, fetchQuizResults, findLearnerByEmail, linkChildToParent, unlinkChild } from '../lib/supabase'
 import { SUBJECTS, Spinner, ProgressBar, StatCard, useToast } from '../components/ui'
+import { generateProgressReport } from '../lib/pdfReport'
 
 // ── Link Child Section ────────────────────────────────────────────────────────
 function LinkChildSection({ profile, onLinked }) {
@@ -163,6 +164,12 @@ export default function ParentPortal({ profile }) {
     }
   }
 
+  function handleExport() {
+    if (!selectedChild) return
+    generateProgressReport({ child: selectedChild, progress, quizzes })
+    show('PDF report downloaded!')
+  }
+
   if (loading) return <Spinner />
 
   const avgScore = quizzes.length ? Math.round(quizzes.reduce((a, q) => a + q.percent, 0) / quizzes.length) : 0
@@ -185,6 +192,14 @@ export default function ParentPortal({ profile }) {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {selectedChild && (
+            <button
+              className="btn btn-sm"
+              style={{ background: 'rgba(201,168,76,.25)', color: '#f0d9a0', border: '1px solid rgba(201,168,76,.4)' }}
+              onClick={handleExport}>
+              ⬇ Export PDF
+            </button>
+          )}
           {!isDemo && (
             <button
               className="btn btn-sm"

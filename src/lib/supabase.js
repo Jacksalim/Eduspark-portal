@@ -106,6 +106,34 @@ export async function fetchChildrenForParent(parentId) {
   return data || []
 }
 
+export async function findLearnerByEmail(email) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, name, grade, email')
+    .eq('email', email.trim().toLowerCase())
+    .eq('role', 'learner')
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function linkChildToParent(learnerId, parentId) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ parent_id: parentId })
+    .eq('id', learnerId)
+    .eq('role', 'learner')
+  if (error) throw error
+}
+
+export async function unlinkChild(learnerId) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ parent_id: null })
+    .eq('id', learnerId)
+  if (error) throw error
+}
+
 // ─── Visits ───────────────────────────────────────────────────────────────────
 export async function logVisit(page, userId) {
   await supabase.from('visits').insert({ page, user_id: userId || null, visited_at: new Date().toISOString() })

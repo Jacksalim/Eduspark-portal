@@ -81,12 +81,17 @@ alter table public.quiz_results enable row level security;
 alter table public.progress enable row level security;
 alter table public.visits enable row level security;
 
--- Profiles: users see their own; admins see all
+-- Profiles: users see their own; admins see all; authenticated users can look up learners (for linking)
 create policy "Users can view own profile" on public.profiles for select using (auth.uid() = id);
 create policy "Admins can view all profiles" on public.profiles for select using (
   exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
 );
+create policy "Authenticated users can view learner profiles" on public.profiles for select
+  using (role = 'learner' and auth.role() = 'authenticated');
 create policy "Users can update own profile" on public.profiles for update using (auth.uid() = id);
+create policy "Parents can link themselves to a learner" on public.profiles for update
+  using (role = 'learner')
+  with check (parent_id = auth.uid());
 create policy "Insert on signup" on public.profiles for insert with check (auth.uid() = id);
 
 -- Videos: anyone authenticated can read; only admins can write

@@ -1,29 +1,136 @@
 import { useState, useEffect } from 'react'
-import { fetchChildrenForParent, fetchProgress, fetchQuizResults } from '../lib/supabase'
-import { SUBJECTS, Spinner, ProgressBar, StatCard } from '../components/ui'
+import { fetchChildrenForParent, fetchProgress, fetchQuizResults, findLearnerByEmail, linkChildToParent, unlinkChild } from '../lib/supabase'
+import { SUBJECTS, Spinner, ProgressBar, StatCard, useToast } from '../components/ui'
 
+// ── Link Child Section ────────────────────────────────────────────────────────
+function LinkChildSection({ profile, onLinked }) {
+  const [email, setEmail] = useState('')
+  const [found, setFound] = useState(null)
+  const [searching, setSearching] = useState(false)
+  const [linking, setLinking] = useState(false)
+  const [searchError, setSearchError] = useState('')
+  const { show, ToastEl } = useToast()
+
+  async function handleSearch(e) {
+    e.preventDefault()
+    if (!email.trim()) return
+    setSearching(true)
+    setFound(null)
+    setSearchError('')
+    try {
+      const learner = await findLearnerByEmail(email)
+      setFound(learner)
+    } catch {
+      setSearchError('No learner account found with that email address.')
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  async function handleLink() {
+    if (!found || !profile?.id) return
+    setLinking(true)
+    try {
+      await linkChildToParent(found.id, profile.id)
+      show(`${found.name} has been linked to your account!`)
+      setEmail('')
+      setFound(null)
+      setTimeout(onLinked, 1200)
+    } catch (err) {
+      show('Could not link account: ' + err.message, 'error')
+    } finally {
+      setLinking(false)
+    }
+  }
+
+  return (
+    <div className="card card-pad" style={{ marginBottom: 24 }}>
+      {ToastEl}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+        <span style={{ fontSize: '1.4rem' }}>🔗</span>
+        <div>
+          <h4 style={{ margin: 0, fontSize: '1rem' }}>Link a Child's Account</h4>
+          <p style={{ margin: 0, fontSize: '.82rem', color: '#888', marginTop: 2 }}>
+            Enter your child's registered email address to link their account.
+          </p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSearch} style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <input
+          className="form-control"
+          type="email"
+          value={email}
+          onChange={e => { setEmail(e.target.value); setFound(null); setSearchError('') }}
+          placeholder="child@email.com"
+          style={{ flex: 1, minWidth: 220 }}
+          required
+        />
+        <button className="btn btn-teal" type="submit" disabled={searching || !email.trim()}>
+          {searching ? '⏳ Searching…' : '🔍 Find Account'}
+        </button>
+      </form>
+
+      {searchError && (
+        <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--rose-light)', color: 'var(--rose)', borderRadius: 8, fontSize: '.87rem', fontWeight: 500 }}>
+          ❌ {searchError}
+        </div>
+      )}
+
+      {found && (
+        <div style={{ marginTop: 14, padding: '14px 18px', background: 'var(--teal-light, #e8f4f4)', border: '1px solid var(--teal)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--teal)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '1.1rem', flexShrink: 0 }}>
+              {found.name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '.95rem' }}>{found.name}</div>
+              <div style={{ fontSize: '.8rem', color: '#555', marginTop: 2 }}>
+                {found.grade ? `Grade ${found.grade}` : 'Grade not set'} · {found.email}
+              </div>
+            </div>
+          </div>
+          <button className="btn btn-teal btn-sm" onClick={handleLink} disabled={linking}>
+            {linking ? '⏳ Linking…' : '✅ Link This Child'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main Parent Portal ────────────────────────────────────────────────────────
 export default function ParentPortal({ profile }) {
   const [children, setChildren] = useState([])
   const [selectedChild, setSelectedChild] = useState(null)
   const [progress, setProgress] = useState([])
   const [quizzes, setQuizzes] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showLink, setShowLink] = useState(false)
+  const isDemo = !profile?.id
+  const { show, ToastEl } = useToast()
 
-  useEffect(() => {
+  function loadChildren() {
     if (!profile?.id) { setLoading(false); return }
     fetchChildrenForParent(profile.id)
       .then(data => {
         setChildren(data)
-        if (data.length > 0) setSelectedChild(data[0])
+        if (data.length > 0) {
+          setSelectedChild(prev => prev ? (data.find(c => c.id === prev.id) || data[0]) : data[0])
+        } else {
+          setSelectedChild(null)
+        }
+        setShowLink(data.length === 0)
       })
       .catch(() => {
-        // Demo: show placeholder child
         const demo = { id: 'demo', name: 'Your Child', grade: '7', email: 'child@email.com', created_at: new Date().toISOString() }
         setChildren([demo])
         setSelectedChild(demo)
       })
       .finally(() => setLoading(false))
-  }, [profile?.id])
+  }
+
+  useEffect(() => { loadChildren() }, [profile?.id])
 
   useEffect(() => {
     if (!selectedChild?.id || selectedChild.id === 'demo') {
@@ -45,6 +152,17 @@ export default function ParentPortal({ profile }) {
       .catch(() => {})
   }, [selectedChild?.id])
 
+  async function handleUnlink(child) {
+    if (!confirm(`Remove ${child.name} from your account?`)) return
+    try {
+      await unlinkChild(child.id)
+      show(`${child.name} unlinked`)
+      loadChildren()
+    } catch (err) {
+      show('Could not unlink: ' + err.message, 'error')
+    }
+  }
+
   if (loading) return <Spinner />
 
   const avgScore = quizzes.length ? Math.round(quizzes.reduce((a, q) => a + q.percent, 0) / quizzes.length) : 0
@@ -57,6 +175,7 @@ export default function ParentPortal({ profile }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+      {ToastEl}
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, var(--rose) 0%, #8b2d2d 100%)', color: '#fff', padding: '24px 36px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
@@ -65,29 +184,63 @@ export default function ParentPortal({ profile }) {
             {selectedChild ? `Tracking: ${selectedChild.name} · Grade ${selectedChild.grade}` : 'No children linked yet'}
           </p>
         </div>
-        <span className="nav-badge" style={{ background: 'rgba(255,255,255,.2)' }}>Parent</span>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {!isDemo && (
+            <button
+              className="btn btn-sm"
+              style={{ background: 'rgba(255,255,255,.18)', color: '#fff', border: '1px solid rgba(255,255,255,.3)' }}
+              onClick={() => setShowLink(v => !v)}>
+              {showLink ? '✕ Cancel' : '＋ Link Child'}
+            </button>
+          )}
+          <span className="nav-badge" style={{ background: 'rgba(255,255,255,.2)' }}>Parent</span>
+        </div>
       </div>
 
       <div style={{ padding: '32px 36px', maxWidth: 900 }}>
-        {/* Child selector if multiple */}
-        {children.length > 1 && (
-          <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
+        {/* Link child panel */}
+        {showLink && !isDemo && (
+          <LinkChildSection profile={profile} onLinked={() => { loadChildren(); setShowLink(false) }} />
+        )}
+
+        {/* Child tabs */}
+        {children.length > 0 && (
+          <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
             {children.map(c => (
-              <button key={c.id} onClick={() => setSelectedChild(c)}
-                className={`grade-pill ${selectedChild?.id === c.id ? 'active' : ''}`}
-                style={{ borderColor: selectedChild?.id === c.id ? 'var(--rose)' : undefined }}>
-                {c.name}
-              </button>
+              <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button
+                  onClick={() => setSelectedChild(c)}
+                  className={`grade-pill ${selectedChild?.id === c.id ? 'active' : ''}`}
+                  style={{ borderColor: selectedChild?.id === c.id ? 'var(--rose)' : undefined }}>
+                  {c.name}
+                </button>
+                {!isDemo && c.id !== 'demo' && (
+                  <button
+                    title={`Unlink ${c.name}`}
+                    onClick={() => handleUnlink(c)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: '.85rem', padding: '2px 4px', lineHeight: 1 }}
+                    onMouseEnter={e => e.currentTarget.style.color = 'var(--rose)'}
+                    onMouseLeave={e => e.currentTarget.style.color = '#ccc'}>
+                    ✕
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}
 
-        {/* No children linked */}
-        {children.length === 0 && (
+        {/* No children, not showing link form */}
+        {children.length === 0 && !showLink && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#aaa' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>👨‍👩‍👧</div>
-            <div style={{ fontWeight: 600 }}>No children linked to your account</div>
-            <div style={{ fontSize: '.88rem', marginTop: 6 }}>Ask your tutor to link your child's account to yours.</div>
+            <div style={{ fontWeight: 600, color: '#555', marginBottom: 8 }}>No children linked to your account</div>
+            {isDemo ? (
+              <div style={{ fontSize: '.88rem' }}>Sign in to link your child's account and track their progress.</div>
+            ) : (
+              <button className="btn btn-teal" onClick={() => setShowLink(true)} style={{ marginTop: 8 }}>
+                🔗 Link a Child Now
+              </button>
+            )}
           </div>
         )}
 
@@ -140,7 +293,7 @@ export default function ParentPortal({ profile }) {
               </div>
             )}
 
-            {/* Tip for parent */}
+            {/* Tip */}
             <div style={{ marginTop: 20, padding: '16px 20px', background: '#fff8e8', border: '1px solid var(--gold-light, #f0d9a0)', borderRadius: 12, fontSize: '.87rem', color: '#996600' }}>
               💡 <b>Tip:</b> Progress scores update automatically after each quiz. Encourage {selectedChild.name.split(' ')[0]} to take quizzes regularly to keep the progress tracker up to date!
             </div>

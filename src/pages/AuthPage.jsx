@@ -103,9 +103,6 @@ export default function AuthPage({ onAuth }) {
           </form>
         </div>
 
-        <p style={{ textAlign: 'center', marginTop: 20, color: '#999', fontSize: '.82rem' }}>
-          Demo: skip login by clicking the portal cards on the home page.
-        </p>
       </div>
     </div>
   )

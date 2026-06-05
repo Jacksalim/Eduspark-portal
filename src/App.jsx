@@ -15,15 +15,22 @@ const PORTAL_LABELS = {
 
 export default function App() {
   const { user, profile, loading } = useAuth()
-  const [view, setView] = useState('home') // home | auth | learner | parent | admin
+  const [view, setView] = useState('home')
   const [demoRole, setDemoRole] = useState(null)
+
+  // Watch for profile loading and redirect automatically
+  useEffect(() => {
+    if (user && profile) {
+      if (view === 'auth' || view === 'home') {
+        setView(profile.role)
+      }
+    }
+  }, [user, profile])
 
   function handleEnter(role) {
     if (user && profile) {
-      // Already logged in — go straight to that portal
       setView(role)
     } else {
-      // Not logged in — show auth page, then redirect to this role's portal
       setDemoRole(role)
       setView('auth')
     }
@@ -35,23 +42,17 @@ export default function App() {
     setDemoRole(null)
   }
 
-  // After logging in, redirect to intended portal
-  useEffect(() => {
-    if (user && profile && view === 'auth') {
-      setView(profile.role)
-    }
-  }, [user, profile, view])
-
-  const activePortal = user && profile ? profile.role : null
-  const currentView = view
-
-  // Demo profile for unauthenticated preview
   const demoProfile = demoRole ? {
-    id: null, name: demoRole === 'admin' ? 'Demo Tutor' : demoRole === 'parent' ? 'Demo Parent' : 'Demo Learner',
-    role: demoRole, grade: '7', email: 'demo@eduspark.co.za'
+    id: null,
+    name: demoRole === 'admin' ? 'Demo Tutor' : demoRole === 'parent' ? 'Demo Parent' : 'Demo Learner',
+    role: demoRole,
+    grade: '7',
+    email: 'demo@eduspark.co.za'
   } : null
 
   const effectiveProfile = profile || demoProfile
+  const currentView = view
+  const showPortalNav = ['learner', 'parent', 'admin'].includes(currentView) && effectiveProfile
 
   if (loading) {
     return (
@@ -63,19 +64,17 @@ export default function App() {
     )
   }
 
-  const showPortalNav = ['learner','parent','admin'].includes(currentView) && effectiveProfile
-
   return (
     <div className="app">
-      {/* ── Nav ── */}
+      {/* Nav */}
       <nav className="nav">
-        <div className="nav-logo" onClick={() => setView('home')} role="button" tabIndex={0} onKeyDown={e => e.key==='Enter' && setView('home')}>
+        <div className="nav-logo" onClick={() => setView('home')} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && setView('home')}>
           Edu<span>Spark</span>
         </div>
 
         {showPortalNav && (
           <div className="nav-tabs">
-            {(['learner','parent','admin']).map(r => (
+            {['learner', 'parent', 'admin'].map(r => (
               <button key={r} className={`nav-tab ${currentView === r ? 'active' : ''}`} onClick={() => setView(r)}>
                 {PORTAL_LABELS[r]}
               </button>
@@ -99,9 +98,9 @@ export default function App() {
         </div>
       </nav>
 
-      {/* ── Pages ── */}
-      {currentView === 'home'   && <Landing onEnter={handleEnter} />}
-      {currentView === 'auth'   && <AuthPage />}
+      {/* Pages */}
+      {currentView === 'home'    && <Landing onEnter={handleEnter} />}
+      {currentView === 'auth'    && <AuthPage />}
       {currentView === 'learner' && effectiveProfile && <LearnerPortal profile={effectiveProfile} />}
       {currentView === 'parent'  && effectiveProfile && <ParentPortal profile={effectiveProfile} />}
       {currentView === 'admin'   && effectiveProfile && <AdminDashboard profile={effectiveProfile} />}

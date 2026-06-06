@@ -27,9 +27,26 @@ export default function App() {
     }
   }, [user, profile])
 
+  // Block access if user tries to visit a portal they don't have permission for
+  useEffect(() => {
+    if (!profile) return
+    const allowed = getAllowedPortals(profile.role)
+    if (['learner','parent','admin'].includes(view) && !allowed.includes(view)) {
+      setView(profile.role) // redirect back to their own portal
+    }
+  }, [view, profile])
+
+  function getAllowedPortals(role) {
+    if (role === 'admin') return ['learner', 'parent', 'admin']
+    if (role === 'parent') return ['parent']
+    return ['learner']
+  }
+
   function handleEnter(role) {
     if (user && profile) {
-      setView(role)
+      const allowed = getAllowedPortals(profile.role)
+      if (allowed.includes(role)) setView(role)
+      else setView(profile.role)
     } else {
       setDemoRole(role)
       setView('auth')
@@ -52,7 +69,8 @@ export default function App() {
 
   const effectiveProfile = profile || demoProfile
   const currentView = view
-  const showPortalNav = ['learner', 'parent', 'admin'].includes(currentView) && effectiveProfile
+  const allowedPortals = effectiveProfile ? getAllowedPortals(effectiveProfile.role) : []
+  const showPortalNav = ['learner','parent','admin'].includes(currentView) && effectiveProfile && allowedPortals.length > 1
 
   if (loading) {
     return (
@@ -66,15 +84,15 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* Nav */}
       <nav className="nav">
         <div className="nav-logo" onClick={() => setView('home')} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && setView('home')}>
           Edu<span>Spark</span>
         </div>
 
+        {/* Only show tabs the user is allowed to access */}
         {showPortalNav && (
           <div className="nav-tabs">
-            {['learner', 'parent', 'admin'].map(r => (
+            {allowedPortals.map(r => (
               <button key={r} className={`nav-tab ${currentView === r ? 'active' : ''}`} onClick={() => setView(r)}>
                 {PORTAL_LABELS[r]}
               </button>
@@ -84,7 +102,9 @@ export default function App() {
 
         <div className="nav-right">
           {effectiveProfile && (
-            <span className="nav-badge" style={{ background: currentView === 'admin' ? '#6b4fa0' : currentView === 'parent' ? 'var(--rose)' : 'var(--teal)' }}>
+            <span className="nav-badge" style={{
+              background: currentView === 'admin' ? '#6b4fa0' : currentView === 'parent' ? 'var(--rose)' : 'var(--teal)'
+            }}>
               {effectiveProfile.name.split(' ')[0]}
             </span>
           )}
@@ -98,12 +118,12 @@ export default function App() {
         </div>
       </nav>
 
-      {/* Pages */}
-      {currentView === 'home'    && <Landing onEnter={handleEnter} />}
-      {currentView === 'auth'    && <AuthPage />}
-      {currentView === 'learner' && effectiveProfile && <LearnerPortal profile={effectiveProfile} />}
-      {currentView === 'parent'  && effectiveProfile && <ParentPortal profile={effectiveProfile} />}
-      {currentView === 'admin'   && effectiveProfile && <AdminDashboard profile={effectiveProfile} />}
+      {/* Gate each portal behind a role check */}
+      {currentView === 'home' && <Landing onEnter={handleEnter} />}
+      {currentView === 'auth' && <AuthPage />}
+      {currentView === 'learner' && effectiveProfile && (effectiveProfile.role === 'learner' || effectiveProfile.role === 'admin') && <LearnerPortal profile={effectiveProfile} />}
+      {currentView === 'parent'  && effectiveProfile && (effectiveProfile.role === 'parent'  || effectiveProfile.role === 'admin') && <ParentPortal profile={effectiveProfile} />}
+      {currentView === 'admin'   && effectiveProfile && effectiveProfile.role === 'admin' && <AdminDashboard profile={effectiveProfile} />}
     </div>
   )
 }

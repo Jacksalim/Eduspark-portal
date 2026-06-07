@@ -29,6 +29,13 @@ export async function signOut() {
   await supabase.auth.signOut()
 }
 
+export async function resetPassword(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: `${window.location.origin}/?reset=1`,
+  })
+  if (error) throw error
+}
+
 export async function getProfile(userId) {
   const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single()
   if (error) throw error

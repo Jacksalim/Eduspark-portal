@@ -1,5 +1,3 @@
-import { jsPDF } from 'jspdf'
-
 const TEAL   = [26, 107, 107]
 const GOLD   = [201, 168, 76]
 const INK    = [18, 30, 30]
@@ -37,7 +35,8 @@ function scoreColor(pct) {
   return [...ROSE]
 }
 
-export function generateProgressReport({ child, progress, quizzes }) {
+export async function generateProgressReport({ child, progress, quizzes }) {
+  const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const W = 210
   const margin = 18

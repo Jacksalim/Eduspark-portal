@@ -164,9 +164,9 @@ export default function ParentPortal({ profile }) {
     }
   }
 
-  function handleExport() {
+  async function handleExport() {
     if (!selectedChild) return
-    generateProgressReport({ child: selectedChild, progress, quizzes })
+    await generateProgressReport({ child: selectedChild, progress, quizzes })
     show('PDF report downloaded!')
   }
 

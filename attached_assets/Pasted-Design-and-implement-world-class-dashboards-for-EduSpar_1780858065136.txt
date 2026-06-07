@@ -1,0 +1,226 @@
+Design and implement world-class dashboards for EduSpark.
+
+Tech Stack:
+
+- React
+- Vite
+- Supabase
+- Tailwind CSS
+- Anthropic Claude API
+
+Create modern, responsive, professional dashboards inspired by Coursera, Khan Academy, Google Classroom, and Duolingo.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+LEARNER DASHBOARD
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Welcome Section:
+
+- Personalized greeting
+- Learner name
+- Grade level
+- Motivational learning quote
+- Learning streak counter
+
+Statistics Cards:
+
+- Videos Watched
+- Quizzes Completed
+- Average Score
+- Learning Progress %
+- Current Rank
+- Subjects Studied
+
+Learning Progress:
+
+- Progress bars for each subject
+- Weekly learning activity chart
+- Performance trend graph
+
+Quick Actions:
+
+- Watch Videos
+- Take AI Quiz
+- View Results
+- Continue Learning
+- View Leaderboard
+
+Recent Activity:
+
+- Recently watched videos
+- Recent quiz scores
+- Upcoming assignments
+
+Achievements:
+
+- Badges
+- Certificates
+- Milestones reached
+
+AI Learning Assistant:
+
+- Ask questions
+- Get explanations
+- Generate practice questions
+
+Leaderboard:
+
+- Top learners by grade
+- Top quiz scores
+- Weekly champions
+
+━━━━━━━━━━━━━━━━━━━━━━━
+PARENT DASHBOARD
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Parent Welcome Section:
+
+- Parent name
+- Number of linked children
+
+Child Overview Cards:
+
+- Child Name
+- Grade
+- Overall Progress
+- Average Score
+- Learning Streak
+
+Academic Analytics:
+
+- Performance charts
+- Subject strengths
+- Subject weaknesses
+- Progress trends
+
+Learning Activity:
+
+- Videos watched
+- Quizzes completed
+- Time spent learning
+- Daily activity reports
+
+Notifications:
+
+- Low performance alerts
+- Missed learning goals
+- New achievements
+
+Reports:
+
+- Weekly report
+- Monthly report
+- Download PDF report
+
+Child Management:
+
+- Link child account
+- Remove child account
+- View detailed profile
+
+Communication:
+
+- Contact tutor
+- Send message
+- Request academic report
+
+━━━━━━━━━━━━━━━━━━━━━━━
+TUTOR / ADMIN DASHBOARD
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Overview Cards:
+
+- Total Learners
+- Total Parents
+- Total Videos
+- Total Quizzes
+- Daily Visits
+- Active Users
+
+Analytics:
+
+- User growth chart
+- Quiz performance chart
+- Subject popularity chart
+- Traffic statistics
+
+Learner Management:
+
+- View all learners
+- Edit learner
+- Delete learner
+- Search learners
+
+Parent Management:
+
+- View parents
+- Link parents to learners
+- Manage relationships
+
+Video Management:
+
+- Upload videos
+- Edit videos
+- Delete videos
+- Categorize videos
+
+Quiz Management:
+
+- Generate AI quizzes
+- Review quizzes
+- Manage question banks
+
+Content Moderation:
+
+- Review uploaded content
+- Flag inappropriate content
+
+System Monitoring:
+
+- Authentication status
+- Database status
+- API status
+- Anthropic usage
+
+Reports:
+
+- Export CSV
+- Export Excel
+- Export PDF
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DESIGN REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+- Modern glassmorphism design
+- Mobile responsive
+- Dark mode and light mode
+- Smooth animations
+- Professional charts
+- Beautiful icons
+- Sidebar navigation
+- Top navigation bar
+- Notification center
+- User profile dropdown
+- Loading skeletons
+- Error boundaries
+- Empty states
+
+━━━━━━━━━━━━━━━━━━━━━━━
+IMPLEMENTATION REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Generate:
+
+- LearnerDashboard.jsx
+- ParentDashboard.jsx
+- AdminDashboard.jsx
+- Reusable dashboard components
+- Responsive layouts
+- Supabase integration
+- Role-based access control
+- Loading and error states
+
+Use the existing EduSpark authentication system and database schema.
+
+Provide complete production-ready code.

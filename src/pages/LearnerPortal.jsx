@@ -148,4 +148,330 @@ function QuizSection({ profile }) {
 
       {/* Grade + Subject controls */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24, alignItems: 'flex-end' }}>
-        <div className="form-group" style={{ margin:
+        <div className="form-group" style={{ margin: 0 }}>
+          <label style={{ fontSize: '.78rem', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>Grade</label>
+          <select className="form-control" value={grade} onChange={e => setGrade(e.target.value)} style={{ width: 130 }}>
+            {GRADES.map(g => <option key={g} value={g}>{g === 'R' ? 'Grade R' : `Grade ${g}`}</option>)}
+          </select>
+        </div>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label style={{ fontSize: '.78rem', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>Subject</label>
+          <select className="form-control" value={subject} onChange={e => setSubject(e.target.value)} style={{ width: 200 }}>
+            {Object.keys(SUBJECTS).map(s => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+        <button className="btn btn-teal" onClick={start} disabled={loading}>
+          {loading ? '⏳ Generating…' : '🤖 Generate AI Quiz'}
+        </button>
+      </div>
+
+      {/* Loading state */}
+      {loading && (
+        <div className="card card-pad" style={{ textAlign: 'center', padding: '48px 24px' }}>
+          <div className="spinner" style={{ margin: '0 auto 16px' }} />
+          <div style={{ fontWeight: 600 }}>Generating Grade {grade} {subject} quiz…</div>
+          <div style={{ color: '#aaa', fontSize: '.85rem', marginTop: 6 }}>Claude is crafting curriculum-aligned questions</div>
+        </div>
+      )}
+
+      {/* Active quiz */}
+      {!loading && quiz && !done && (
+        <div className="card card-pad quiz-wrap">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+            <div>
+              <h3 style={{ fontSize: '1.1rem' }}>{subject} · Grade {grade}</h3>
+              <div style={{ color: '#888', fontSize: '.8rem', marginTop: 3 }}>Question {qIdx + 1} of {quiz.length}</div>
+            </div>
+            <span className="pill pill-green">{score} correct</span>
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <ProgressBar value={(qIdx / quiz.length) * 100} />
+          </div>
+
+          <div style={{ fontSize: '1.02rem', fontWeight: 600, lineHeight: 1.6, marginBottom: 20 }}>
+            {quiz[qIdx].q}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {quiz[qIdx].options.map((opt, i) => {
+              let cls = 'option-btn'
+              if (answered) {
+                if (i === quiz[qIdx].answer) cls += ' correct'
+                else if (i === selected) cls += ' wrong'
+              } else if (selected === i) {
+                cls += ' selected'
+              }
+              return (
+                <button key={i} className={cls} disabled={answered} onClick={() => answer(i)}>
+                  <span className="option-label">{['A','B','C','D'][i]}</span>
+                  {opt}
+                </button>
+              )
+            })}
+          </div>
+
+          {answered && (
+            <div style={{
+              marginTop: 16, padding: '11px 16px', borderRadius: 8, fontSize: '.87rem',
+              background: selected === quiz[qIdx].answer ? '#e6f5e6' : 'var(--rose-light)',
+              color: selected === quiz[qIdx].answer ? '#256625' : 'var(--rose)'
+            }}>
+              💡 {quiz[qIdx].explanation}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
+            <span style={{ color: '#aaa', fontSize: '.84rem' }}>
+              {answered ? (selected === quiz[qIdx].answer ? '✅ Correct!' : '❌ Incorrect') : 'Select an answer above'}
+            </span>
+            {answered && (
+              <button className="btn btn-teal btn-sm" onClick={next}>
+                {qIdx + 1 < quiz.length ? 'Next Question →' : 'See Results'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Results screen */}
+      {done && (
+        <div className="card card-pad" style={{ textAlign: 'center', padding: '48px 32px' }}>
+          <div style={{ fontSize: '3rem', marginBottom: 10 }}>
+            {finalScore === quiz.length ? '🌟' : finalScore >= quiz.length * 0.7 ? '🎉' : '📚'}
+          </div>
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: '3.5rem', fontWeight: 700, color: 'var(--teal)' }}>
+            {finalScore}/{quiz.length}
+          </div>
+          <div style={{ color: '#888', marginTop: 4, marginBottom: 16 }}>
+            {Math.round((finalScore / quiz.length) * 100)}% — {subject} · Grade {grade}
+          </div>
+          <div style={{ fontSize: '1rem', marginBottom: 24, color: 'var(--ink)' }}>
+            {finalScore === quiz.length ? '🌟 Perfect score! Outstanding work!'
+              : finalScore >= quiz.length * 0.7 ? '💪 Great job! Keep practising!'
+              : '📖 Keep going — every attempt makes you stronger!'}
+          </div>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+            <button className="btn btn-teal" onClick={start}>Try Again →</button>
+            <button className="btn btn-ghost" onClick={() => { setQuiz(null); setDone(false) }}>Change Subject</button>
+          </div>
+        </div>
+      )}
+
+      {/* Quiz history */}
+      {history.length > 0 && (
+        <div style={{ marginTop: 28 }}>
+          <h4 style={{ marginBottom: 14, fontSize: '1rem' }}>📋 Recent Quiz History</h4>
+          <div className="data-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr><th>Subject</th><th>Grade</th><th>Score</th><th>Result</th><th>Date</th></tr>
+              </thead>
+              <tbody>
+                {history.slice(0, 10).map(r => (
+                  <tr key={r.id}>
+                    <td><b>{r.subject}</b></td>
+                    <td>Grade {r.grade}</td>
+                    <td>{r.score}/{r.total}</td>
+                    <td>
+                      <span className={`pill ${r.percent >= 70 ? 'pill-green' : r.percent >= 50 ? 'pill-amber' : 'pill-red'}`}>
+                        {r.percent}%
+                      </span>
+                    </td>
+                    <td style={{ color: '#999', fontSize: '.8rem' }}>
+                      {new Date(r.created_at).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Progress Section ──────────────────────────────────────────────────────────
+function ProgressSection({ profile }) {
+  const [progress, setProgress] = useState([])
+  const [quizzes, setQuizzes] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!profile?.id) { setLoading(false); return }
+    Promise.all([fetchProgress(profile.id), fetchQuizResults(profile.id)])
+      .then(([p, q]) => { setProgress(p); setQuizzes(q) })
+      .finally(() => setLoading(false))
+  }, [profile?.id])
+
+  if (loading) return <Spinner />
+
+  const subjectColors = {
+    'Mathematics': 'var(--teal)',
+    'Business Studies': 'var(--purple)',
+    'English': 'var(--rose)',
+    'Natural Sciences': '#2d7a2d'
+  }
+
+  return (
+    <div>
+      <div className="stats-grid">
+        <StatCard num={quizzes.length} label="Quizzes Taken" sub="Total" color="var(--teal)" />
+        <StatCard
+          num={quizzes.length ? Math.round(quizzes.reduce((a, q) => a + q.percent, 0) / quizzes.length) + '%' : '—'}
+          label="Avg Quiz Score" sub="All subjects" color="var(--gold)"
+        />
+        <StatCard num={progress.length} label="Subjects Active" sub="Tracked" color="var(--purple)" />
+      </div>
+
+      {progress.length > 0 && (
+        <div className="card card-pad" style={{ marginBottom: 24 }}>
+          <h4 style={{ marginBottom: 18 }}>📚 Subject Progress</h4>
+          {progress.map(p => (
+            <div key={p.subject} style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: '.87rem', fontWeight: 600 }}>{SUBJECTS[p.subject]?.icon} {p.subject}</span>
+                <span style={{ fontSize: '.82rem', fontWeight: 700, color: subjectColors[p.subject] || 'var(--teal)' }}>{p.percent}%</span>
+              </div>
+              <ProgressBar value={p.percent} color={subjectColors[p.subject] || 'var(--teal)'} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {quizzes.length === 0 && progress.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#aaa' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>📊</div>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>No data yet</div>
+          <div style={{ fontSize: '.88rem' }}>Take a quiz to see your progress tracked here!</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main Learner Portal ───────────────────────────────────────────────────────
+export default function LearnerPortal({ profile }) {
+  const [section, setSection] = useState('lessons')
+  const [grade, setGrade] = useState(profile?.grade || '7')
+  const [subject, setSubject] = useState('Mathematics')
+  const [videos, setVideos] = useState([])
+  const [watchedIds, setWatchedIds] = useState([])
+  const [videoLoading, setVideoLoading] = useState(false)
+  const [openVideo, setOpenVideo] = useState(null)
+  const { show, ToastEl } = useToast()
+
+  useEffect(() => {
+    setVideoLoading(true)
+    fetchVideos({ subject, grade })
+      .then(setVideos)
+      .catch(() => setVideos([]))
+      .finally(() => setVideoLoading(false))
+  }, [subject, grade])
+
+  useEffect(() => {
+    if (profile?.id) fetchWatchedIds(profile.id).then(setWatchedIds).catch(() => {})
+  }, [profile?.id])
+
+  const sideItems = [
+    { id: 'lessons',  icon: '▶️',  label: 'Video Lessons' },
+    { id: 'quiz',     icon: '📝',  label: 'Quizzes' },
+    { id: 'progress', icon: '📊',  label: 'My Progress' },
+  ]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+      {ToastEl}
+      {openVideo && (
+        <VideoModal
+          video={openVideo}
+          userId={profile?.id}
+          onClose={() => setOpenVideo(null)}
+          onWatched={() => setWatchedIds(ids => [...ids, openVideo.id])}
+        />
+      )}
+
+      <div style={{ background: 'var(--teal)', color: '#fff', padding: '24px 36px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2 style={{ fontSize: '1.4rem' }}>Welcome back, {profile?.name?.split(' ')[0] || 'Learner'} 👋</h2>
+          <p style={{ opacity: .75, fontSize: '.88rem', marginTop: 3 }}>Grade {grade} · {subject}</p>
+        </div>
+        <span className="nav-badge" style={{ background: 'rgba(255,255,255,.2)', fontSize: '.8rem' }}>Grade {grade}</span>
+      </div>
+
+      <div className="portal-layout">
+        <div className="sidebar">
+          <div className="sidebar-section">Portal</div>
+          {sideItems.map(s => (
+            <button key={s.id} className={`sidebar-btn ${section === s.id ? 'active' : ''}`} onClick={() => setSection(s.id)}>
+              {s.icon} {s.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="portal-main">
+          {section === 'lessons' && (
+            <>
+              <div style={{ marginBottom: 22 }}>
+                <div style={{ fontSize: '.72rem', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#aaa', marginBottom: 10 }}>Your Grade</div>
+                <div className="grade-scroll">
+                  {GRADES.map(g => (
+                    <button key={g} className={`grade-pill ${grade === g ? 'active' : ''}`} onClick={() => setGrade(g)}>
+                      {g === 'R' ? 'Grade R' : `Grade ${g}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 22 }}>
+                <div style={{ fontSize: '.72rem', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#aaa', marginBottom: 10 }}>Subject</div>
+                <div className="subject-grid">
+                  {Object.entries(SUBJECTS).map(([s, { icon }]) => (
+                    <div key={s} className={`subject-card ${subject === s ? 'active' : ''}`} onClick={() => setSubject(s)}>
+                      <div style={{ fontSize: '1.6rem', marginBottom: 8 }}>{icon}</div>
+                      <div style={{ fontWeight: 600, fontSize: '.9rem' }}>{s}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ fontSize: '1.05rem' }}>📺 {subject} — Grade {grade}</h3>
+                <button className="btn btn-teal btn-sm" onClick={() => setSection('quiz')}>Take Quiz →</button>
+              </div>
+
+              {videoLoading && <Spinner label="Loading lessons…" />}
+              {!videoLoading && videos.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '60px 20px', color: '#aaa' }}>
+                  <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>📦</div>
+                  <div style={{ fontWeight: 600 }}>No videos yet for Grade {grade} {subject}</div>
+                  <div style={{ fontSize: '.85rem', marginTop: 6 }}>Your tutor will upload lessons soon!</div>
+                </div>
+              )}
+              {!videoLoading && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {videos.map(v => (
+                    <div key={v.id} className="video-item" onClick={() => setOpenVideo(v)}>
+                      <div className="video-thumb">{SUBJECTS[v.subject]?.icon || '▶️'}</div>
+                      <div className="video-info">
+                        <div className="video-title">{v.title}</div>
+                        <div className="video-meta">📁 {v.topic || 'General'} · Grade {v.grade}</div>
+                      </div>
+                      <span className={`pill ${watchedIds.includes(v.id) ? 'pill-blue' : 'pill-green'}`}>
+                        {watchedIds.includes(v.id) ? '✓ Watched' : 'New'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {section === 'quiz' && <QuizSection profile={profile} />}
+          {section === 'progress' && <ProgressSection profile={profile} />}
+        </div>
+      </div>
+    </div>
+  )
+}

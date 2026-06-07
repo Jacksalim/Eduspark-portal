@@ -9,13 +9,42 @@ export const supabase = createClient(
 )
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
+
+// Helper: fire-and-forget branded email via /api/send-email (non-blocking)
+function sendEmail(payload) {
+  fetch('/api/send-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).catch(err => console.warn('[email] send-email call failed (non-fatal):', err.message))
+}
+
 export async function signUp({ email, password, name, role, grade }) {
-  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name, role, grade } } })
+  // emailRedirectTo tells Supabase where to send users after clicking the
+  // confirmation link in the verification email. Must be listed in:
+  //   Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
+  const emailRedirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { name, role, grade },
+      emailRedirectTo,
+    },
+  })
   if (error) throw error
+
   if (data.user) {
-    const { error: pe } = await supabase.from('profiles').insert({ id: data.user.id, name, role, grade: grade || null, email })
+    const { error: pe } = await supabase
+      .from('profiles')
+      .insert({ id: data.user.id, name, role, grade: grade || null, email })
     if (pe) console.warn('Profile insert error:', pe.message)
+
+    // Send branded welcome email via Resend (non-blocking — won't break signup if it fails)
+    sendEmail({ type: 'welcome', to: email, name, role })
   }
+
   return data
 }
 
@@ -30,9 +59,13 @@ export async function signOut() {
 }
 
 export async function resetPassword(email) {
-  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-    redirectTo: `${window.location.origin}/?reset=1`,
-  })
+  // redirectTo must be listed in Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
+  // Supabase appends #access_token=...&type=recovery to this URL so PasswordResetPage can intercept it.
+  const redirectTo = typeof window !== 'undefined'
+    ? `${window.location.origin}/`
+    : undefined
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo })
   if (error) throw error
 }
 

@@ -1,4 +1,4 @@
-// ── Smooth scroll helper
+import { useEffect, useRef } from 'react'
 function scrollTo(id) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
 }

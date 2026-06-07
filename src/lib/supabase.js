@@ -170,9 +170,12 @@ export async function fetchVisits() {
 
 export async function fetchVisitStats() {
   const today = new Date().toISOString().split('T')[0]
-  const [{ count: todayCount }, { count: total }] = await Promise.all([
+  const [todayResult, totalResult] = await Promise.all([
     supabase.from('visits').select('*', { count: 'exact', head: true }).gte('visited_at', today),
     supabase.from('visits').select('*', { count: 'exact', head: true })
   ])
-  return { today: todayCount || 0, total: total || 0 }
+  return {
+    today: todayResult?.count ?? 0,
+    total: totalResult?.count ?? 0
+  }
 }

@@ -4,10 +4,12 @@ import { supabase, getProfile, logVisit } from '../lib/supabase'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser]         = useState(null)
-  const [profile, setProfile]   = useState(null)
-  const [loading, setLoading]   = useState(true)
-  const [profileError, setProfileError] = useState(false)
+  const [user, setUser]                       = useState(null)
+  const [profile, setProfile]                 = useState(null)
+  const [loading, setLoading]                 = useState(true)
+  const [profileError, setProfileError]       = useState(false)
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
+  const [justConfirmed, setJustConfirmed]     = useState(false)
 
   useEffect(() => {
     // 1. Check existing session on startup
@@ -20,15 +22,26 @@ export function AuthProvider({ children }) {
       }
     })
 
-    // 2. Listen for sign in / sign out events
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // 2. Listen for auth events
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true)
+        setUser(session?.user ?? null)
+        setLoading(false)
+        return
+      }
+
       if (session?.user) {
+        if (event === 'SIGNED_IN' && window.location.hash.includes('type=signup')) {
+          setJustConfirmed(true)
+        }
         setUser(session.user)
         loadProfile(session.user.id)
       } else {
         setUser(null)
         setProfile(null)
         setProfileError(false)
+        setIsPasswordRecovery(false)
         setLoading(false)
       }
     })
@@ -53,7 +66,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, profileError, setProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, profileError, setProfile, isPasswordRecovery, setIsPasswordRecovery, justConfirmed, setJustConfirmed }}>
       {children}
     </AuthContext.Provider>
   )

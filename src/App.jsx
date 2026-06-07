@@ -6,6 +6,7 @@ import AuthPage from './pages/AuthPage'
 import LearnerPortal from './pages/LearnerPortal'
 import ParentPortal from './pages/ParentPortal'
 import AdminDashboard from './pages/AdminDashboard'
+import PasswordResetPage from './pages/PasswordResetPage'
 
 function getAllowedPortals(role) {
   if (role === 'admin')  return ['learner', 'parent', 'admin']
@@ -26,8 +27,9 @@ const PORTAL_COLORS = {
 }
 
 export default function App() {
-  const { user, profile, loading, profileError } = useAuth()
+  const { user, profile, loading, profileError, isPasswordRecovery, justConfirmed, setJustConfirmed } = useAuth()
   const [view, setView] = useState('home')
+  const [showConfirmedBanner, setShowConfirmedBanner] = useState(false)
 
   // Auto-redirect when session/profile loads
   useEffect(() => {
@@ -52,6 +54,15 @@ export default function App() {
     }
   }, [view, profile])
 
+  // Show welcome banner when email just confirmed
+  useEffect(() => {
+    if (justConfirmed && profile) {
+      setShowConfirmedBanner(true)
+      setJustConfirmed(false)
+      setTimeout(() => setShowConfirmedBanner(false), 5000)
+    }
+  }, [justConfirmed, profile])
+
   function handleGetStarted() {
     if (user && profile) setView(profile.role)
     else setView('auth')
@@ -67,7 +78,21 @@ export default function App() {
     setView('home')
   }
 
-  // Loading screen
+  // ── Password recovery — show before everything else ──────────────────────
+  if (isPasswordRecovery) {
+    return (
+      <div className="app">
+        <nav className="nav">
+          <div className="nav-logo" style={{ cursor: 'default' }}>
+            Edu<span>Spark</span>
+          </div>
+        </nav>
+        <PasswordResetPage />
+      </div>
+    )
+  }
+
+  // ── Loading screen ────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--cream)', gap: 20 }}>
@@ -81,7 +106,7 @@ export default function App() {
     )
   }
 
-  // Incomplete profile error
+  // ── Incomplete profile error ───────────────────────────────────────────────
   if (user && profileError) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--cream)', gap: 20, padding: 24, textAlign: 'center' }}>
@@ -103,8 +128,28 @@ export default function App() {
   return (
     <div className="app">
 
-      {/* NAV */}
-      <nav className="nav">
+      {/* ── Email confirmed banner ────────────────────────────────────────── */}
+      {showConfirmedBanner && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 600,
+          background: 'linear-gradient(90deg, #1a6b6b, #155858)',
+          color: '#fff', padding: '14px 24px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+          fontSize: '.92rem', fontWeight: 500, boxShadow: '0 2px 12px rgba(0,0,0,.2)',
+          animation: 'slideDown .3s ease',
+        }}>
+          <style>{`@keyframes slideDown { from { transform: translateY(-100%); opacity:0; } to { transform: translateY(0); opacity:1; } }`}</style>
+          <span style={{ fontSize: '1.1rem' }}>🎉</span>
+          <span>Email confirmed — welcome to EduSpark, <strong>{profile?.name?.split(' ')[0]}</strong>!</span>
+          <button onClick={() => setShowConfirmedBanner(false)}
+            style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: '.8rem', marginLeft: 8 }}>
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* ── NAV ──────────────────────────────────────────────────────────── */}
+      <nav className="nav" style={{ marginTop: showConfirmedBanner ? 48 : 0, transition: 'margin-top .3s' }}>
         <div className="nav-logo"
           onClick={() => user && profile ? setView(profile.role) : setView('home')}
           role="button" tabIndex={0}
@@ -155,7 +200,7 @@ export default function App() {
         </div>
       </nav>
 
-      {/* PAGES */}
+      {/* ── PAGES ────────────────────────────────────────────────────────── */}
       {view === 'home' && !user && (
         <Landing onGetStarted={handleGetStarted} onSignIn={handleSignIn} />
       )}

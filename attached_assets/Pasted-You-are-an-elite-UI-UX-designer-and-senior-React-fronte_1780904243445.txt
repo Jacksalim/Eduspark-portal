@@ -1,0 +1,196 @@
+You are an elite UI/UX designer and senior React frontend engineer.
+
+Redesign the entire EduSpark landing page and authentication experience to the quality of a modern SaaS product.
+
+Project:
+EduSpark – An AI-powered online learning platform for learners, parents, and tutors.
+
+Goal:
+Create a visually stunning, highly interactive, conversion-focused website that immediately builds trust and encourages visitors to sign up.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LANDING PAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Design a premium homepage with:
+
+1. HERO SECTION
+
+- Full-screen modern hero
+- Powerful headline:
+  "Learn Smarter. Achieve More."
+- Subheadline:
+  "AI-powered learning, interactive quizzes, educational videos, and real-time progress tracking."
+- Two CTA buttons:
+  - Get Started
+  - Sign In
+- Animated background
+- Floating educational elements
+- Modern illustrations
+
+2. TRUST SECTION
+   Display:
+
+- Number of learners
+- Number of quizzes completed
+- Number of videos available
+- Parent satisfaction rating
+
+3. FEATURES SECTION
+   Interactive feature cards with hover effects:
+
+- AI Quiz Generation
+- Video Learning Library
+- Parent Monitoring
+- Progress Tracking
+- Performance Analytics
+- Personalized Learning
+
+4. HOW IT WORKS
+   Beautiful 3-step process:
+
+Step 1:
+Create Account
+
+Step 2:
+Learn and Practice
+
+Step 3:
+Track Progress and Improve
+
+5. LEARNER BENEFITS
+
+- Personalized learning
+- Instant feedback
+- Performance tracking
+- Achievement badges
+
+6. PARENT BENEFITS
+
+- Monitor academic progress
+- Track performance trends
+- Receive reports
+- Stay informed
+
+7. TUTOR BENEFITS
+
+- Manage learners
+- Upload content
+- Track engagement
+- Analyze performance
+
+8. TESTIMONIALS
+   Modern testimonial carousel
+
+9. FAQ SECTION
+   Collapsible accordion
+
+10. CONTACT SECTION
+    Display:
+
+Name: Jack Abuya
+Email: eduspark.portal@gmail.com
+Website: eduspark.ink
+
+11. PROFESSIONAL FOOTER
+    Include:
+
+- Quick Links
+- Social Media Icons
+- Contact Information
+- Copyright Notice
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AUTHENTICATION EXPERIENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create a beautiful Sign In and Sign Up system.
+
+SIGN IN PAGE
+
+- Modern split-screen layout
+- Left side:
+  Motivational educational graphic
+- Right side:
+  Login form
+
+Fields:
+
+- Email
+- Password
+
+Features:
+
+- Show/Hide Password
+- Remember Me
+- Forgot Password
+- Social Login placeholders
+- Smooth animations
+- Loading states
+- Error handling
+
+SIGN UP PAGE
+
+Fields:
+
+- Full Name
+- Email
+- Password
+- Confirm Password
+- Role Selection
+
+Roles:
+
+- Learner
+- Parent
+- Tutor
+
+If Learner:
+
+- Show Grade Selection
+
+Features:
+
+- Password strength indicator
+- Real-time validation
+- Success animations
+- Mobile responsive design
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DESIGN REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Modern SaaS aesthetic
+- Glassmorphism effects
+- Smooth transitions
+- Professional typography
+- Mobile-first responsive design
+- Dark mode
+- Light mode
+- Accessibility compliant
+- Fast loading
+- Premium visual appearance
+- Consistent EduSpark branding
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TECHNICAL REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- React
+- Tailwind CSS
+- Framer Motion
+- React Router
+- Supabase Authentication
+
+Implement:
+
+- Landing.jsx
+- SignIn.jsx
+- SignUp.jsx
+- Shared UI components
+- Responsive layouts
+- Role-based routing
+
+Ensure the final result looks comparable to modern platforms such as Notion, Stripe, Duolingo, Coursera, and Linear.
+
+Generate complete production-ready code, not pseudocode.

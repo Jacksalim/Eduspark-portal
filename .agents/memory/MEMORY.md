@@ -1,0 +1,3 @@
+- [Stack & package quirks](stack-quirks.md) — jspdf 4.2.1 already installed; pin exactly to avoid npm firewall block
+- [Routing & auth state](routing-auth.md) — useState routing in App.jsx (no React Router); Supabase events require careful wiring
+- [Design system](design-system.md) — CSS vars teal/gold/ink/cream; Playfair Display + DM Sans; no Tailwind

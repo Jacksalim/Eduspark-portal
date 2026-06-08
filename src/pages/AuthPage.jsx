@@ -160,7 +160,9 @@ export default function AuthPage() {
 
   const strength = passwordStrength(password)
   const showMsg  = (text, type = 'error') => setMsg({ text, type })
-  const switchTo = m => { setMode(m); setMsg({ text: '', type: '' }) }
+  // switchTo clears message; switchToKeepMsg preserves it (used after signup success)
+  const switchTo        = m => { setMode(m); setMsg({ text: '', type: '' }) }
+  const switchToKeepMsg = m => setMode(m)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -170,49 +172,53 @@ export default function AuthPage() {
     try {
       // ── Forgot password ───────────────────────────────────────────────
       if (mode === 'forgot') {
-        if (!email) { showMsg('Please enter your email address.'); return }
-        await resetPassword(email)
+        if (!email.trim()) { showMsg('Please enter your email address.'); return }
+        await resetPassword(email.trim())
         showMsg('📧 Reset link sent! Check your inbox and follow the link.', 'success')
         return
       }
 
       // ── Sign up ───────────────────────────────────────────────────────
       if (mode === 'signup') {
-        if (!name.trim())       { showMsg('Please enter your full name.'); return }
-        if (password.length < 6) { showMsg('Password must be at least 6 characters.'); return }
-        if (password !== confirm) { showMsg('Passwords do not match.'); return }
-        await signUp({ email, password, name: name.trim(), role, grade: role === 'learner' ? grade : null })
+        if (!name.trim())         { showMsg('Please enter your full name.'); return }
+        if (!email.trim())        { showMsg('Please enter your email address.'); return }
+        if (password.length < 6)  { showMsg('Password must be at least 6 characters.'); return }
+        if (password !== confirm)  { showMsg('Passwords do not match — please re-enter.'); return }
+        await signUp({ email: email.trim(), password, name: name.trim(), role, grade: role === 'learner' ? grade : null })
+        // Switch to sign-in but KEEP the success message visible
         showMsg('✅ Account created! Check your email to confirm, then sign in.', 'success')
-        switchTo('signin')
+        switchToKeepMsg('signin')
         return
       }
 
       // ── Sign in ───────────────────────────────────────────────────────
       showMsg('Signing you in…', 'info')
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-
-      if (error) {
-        if (error.message.includes('Invalid login'))       showMsg('❌ Wrong email or password. Please try again.')
-        else if (error.message.includes('Email not confirmed')) showMsg('📧 Please confirm your email first — check your inbox.')
-        else if (error.message.includes('fetch'))          showMsg('❌ Cannot connect. Check your internet connection.')
-        else                                               showMsg('❌ ' + error.message)
-        return
-      }
-
-      if (data?.user) {
-        const { data: profile, error: pe } = await supabase.from('profiles').select('*').eq('id', data.user.id).single()
-        if (pe || !profile) {
-          await supabase.from('profiles').insert({
-            id: data.user.id, email: data.user.email,
-            name: data.user.user_metadata?.name || data.user.email.split('@')[0],
-            role: data.user.user_metadata?.role || 'learner',
-            grade: data.user.user_metadata?.grade || null,
-          })
-        }
+      try {
+        await signIn({ email: email.trim(), password })
         showMsg('✅ Signed in! Loading your dashboard…', 'success')
+        // useAuth's onAuthStateChange fires → loads profile → App.jsx redirects automatically
+      } catch (signInErr) {
+        const msg = signInErr.message || ''
+        if (msg.includes('Invalid login credentials') || msg.includes('invalid_credentials')) {
+          showMsg('❌ Wrong email or password. Please try again.')
+        } else if (msg.includes('Email not confirmed')) {
+          showMsg('📧 Please confirm your email first — check your inbox (including spam).')
+        } else if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed to fetch')) {
+          showMsg('❌ Cannot connect to the server. Check your internet connection.')
+        } else {
+          showMsg('❌ ' + msg || 'Sign in failed. Please try again.')
+        }
       }
     } catch (err) {
-      showMsg('❌ ' + (err.message || 'Something went wrong. Please try again.'))
+      // Catches signup / forgot errors thrown from supabase helpers
+      const msg = err.message || ''
+      if (msg.includes('already registered') || msg.includes('User already registered')) {
+        showMsg('❌ An account with this email already exists. Try signing in instead.')
+      } else if (msg.includes('fetch') || msg.includes('Failed to fetch')) {
+        showMsg('❌ Cannot connect to the server. Check your internet connection.')
+      } else {
+        showMsg('❌ ' + (msg || 'Something went wrong. Please try again.'))
+      }
     } finally {
       setLoading(false)
     }

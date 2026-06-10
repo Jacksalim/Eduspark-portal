@@ -75,8 +75,8 @@ async function callGemini(grade, subject, attempt = 1) {
 
 // ── ANTHROPIC provider ────────────────────────────────────────────────────────
 async function callAnthropic(grade, subject, attempt = 1) {
-  const apiKey = process.env.ANTHROPIC_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_KEY not configured')
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
 
   log.info(`Anthropic attempt ${attempt}`, { grade, subject })
 
@@ -139,7 +139,7 @@ async function withRetry(fn, label, maxRetries = MAX_RETRIES) {
       if (
         err.message.includes('not configured') ||
         err.message.includes('credit balance') ||
-        err.message.includes('ANTHROPIC_KEY') ||
+        err.message.includes('ANTHROPIC_API_KEY') ||
         err.message.includes('GEMINI_API_KEY')
       ) {
         break
@@ -176,7 +176,7 @@ export async function generateQuiz(grade, subject) {
   }
 
   // Fallback to Anthropic
-  if (process.env.ANTHROPIC_KEY) {
+  if (process.env.ANTHROPIC_API_KEY) {
     try {
       log.info('Using fallback provider: Anthropic', { grade, subject })
       const result = await withRetry(
@@ -189,8 +189,8 @@ export async function generateQuiz(grade, subject) {
       log.error(`Anthropic fallback also failed: ${err.message}`)
     }
   } else {
-    log.error('ANTHROPIC_KEY not set — no fallback available')
-    errors.anthropic = 'ANTHROPIC_KEY not configured'
+    log.error('ANTHROPIC_API_KEY not set — no fallback available')
+    errors.anthropic = 'ANTHROPIC_API_KEY not configured'
   }
 
   // Both failed

@@ -39,13 +39,20 @@ export function StatCard({ num, label, sub, color = 'var(--teal)' }) {
   )
 }
 
-export function useToast() {
-  const [toast, setToast] = useState(null)
-  const show = (msg, type = 'success') => setToast({ msg, type })
-  const hide = () => setToast(null)
-  const ToastEl = toast ? <Toast msg={toast.msg} type={toast.type} onDone={hide} /> : null
-  return { show, ToastEl }
+export function Toast({ msg, type = 'success', onDone }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 3500)
+    return () => clearTimeout(t)
+  }, [])
+  const icon = type === 'error' ? '❌' : type === 'info' ? 'ℹ️' : '✅'
+  const cls  = type === 'error' ? 'toast toast-error' : type === 'info' ? 'toast toast-info' : 'toast'
+  return (
+    <div className={cls}>
+      {icon} {msg}
+    </div>
+  )
 }
+
 
 export const SUBJECTS = {
   'Mathematics':        { icon: '📐', color: '#1a6b6b' },

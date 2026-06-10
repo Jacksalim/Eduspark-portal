@@ -206,7 +206,7 @@ export default function AuthPage() {
         } else if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed to fetch')) {
           showMsg('❌ Cannot connect to the server. Check your internet connection.')
         } else {
-          showMsg('❌ ' + msg || 'Sign in failed. Please try again.')
+          showMsg('❌ ' + (msg || 'Sign in failed. Please try again.'))
         }
       }
     } catch (err) {

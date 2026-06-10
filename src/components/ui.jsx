@@ -1,17 +1,52 @@
 import { useEffect, useState } from 'react'
 
+// ── Toast component (auto-dismiss after 3.5s) ──────────────────────────────────
 export function Toast({ msg, type = 'success', onDone }) {
   useEffect(() => {
     const t = setTimeout(onDone, 3500)
     return () => clearTimeout(t)
   }, [onDone])
+  const icon = type === 'error' ? '❌' : type === 'info' ? 'ℹ️' : '✅'
+  const cls  = type === 'error' ? 'toast toast-error' : type === 'info' ? 'toast toast-info' : 'toast'
   return (
-    <div className={`toast ${type === 'error' ? 'toast-error' : ''}`}>
-      {type === 'error' ? '❌' : '✅'} {msg}
+    <div className={cls}>
+      {icon} {msg}
     </div>
   )
 }
 
+// ── useToast hook (manage toast state) ─────────────────────────────────────────
+export function useToast() {
+  const [toasts, setToasts] = useState([])
+
+  function show(msg, type = 'success') {
+    const id = Date.now()
+    setToasts(prev => [...prev, { id, msg, type }])
+  }
+
+  function remove(id) {
+    setToasts(prev => prev.filter(t => t.id !== id))
+  }
+
+  function ToastEl() {
+    return (
+      <>
+        {toasts.map(t => (
+          <Toast
+            key={t.id}
+            msg={t.msg}
+            type={t.type}
+            onDone={() => remove(t.id)}
+          />
+        ))}
+      </>
+    )
+  }
+
+  return { show, ToastEl }
+}
+
+// ── Spinner component ──────────────────────────────────────────────────────────
 export function Spinner({ label = 'Loading…' }) {
   return (
     <div className="spinner-wrap">
@@ -21,6 +56,7 @@ export function Spinner({ label = 'Loading…' }) {
   )
 }
 
+// ── ProgressBar component ──────────────────────────────────────────────────────
 export function ProgressBar({ value, color = 'var(--teal)', height = 8 }) {
   return (
     <div className="prog-bar" style={{ height }}>
@@ -29,26 +65,13 @@ export function ProgressBar({ value, color = 'var(--teal)', height = 8 }) {
   )
 }
 
+// ── StatCard component ─────────────────────────────────────────────────────────
 export function StatCard({ num, label, sub, color = 'var(--teal)' }) {
   return (
     <div className="stat-card">
       <div className="stat-num" style={{ color }}>{num}</div>
       <div className="stat-label">{label}</div>
       {sub && <div className="stat-sub" style={{ color }}>{sub}</div>}
-    </div>
-  )
-}
-
-export function Toast({ msg, type = 'success', onDone }) {
-  useEffect(() => {
-    const t = setTimeout(onDone, 3500)
-    return () => clearTimeout(t)
-  }, [])
-  const icon = type === 'error' ? '❌' : type === 'info' ? 'ℹ️' : '✅'
-  const cls  = type === 'error' ? 'toast toast-error' : type === 'info' ? 'toast toast-info' : 'toast'
-  return (
-    <div className={cls}>
-      {icon} {msg}
     </div>
   )
 }

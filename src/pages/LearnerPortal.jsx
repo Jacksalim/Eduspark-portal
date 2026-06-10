@@ -2,21 +2,34 @@ import { useState, useEffect } from 'react'
 import {
   fetchVideos, fetchWatchedIds, markVideoWatched,
   saveQuizResult, fetchQuizResults, fetchProgress, fetchLeaderboard
-} from '../lib/supabase'
-import { SUBJECTS, GRADES, Spinner, ProgressBar, useToast } from '../components/ui'
+  // ── AI Quiz Generation ────────────────────────────────────────────────────────
+  // Gemini primary → Anthropic fallback via /api/quiz serverless function
+  async function generateQuiz(grade, subject) {
+    const res = await fetch('/api/quiz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ grade, subject })
+    })
 
-const QUOTES = [
-  { text: "The beautiful thing about learning is that nobody can take it away from you.", author: "B.B. King" },
-  { text: "Education is the most powerful weapon which you can use to change the world.", author: "Nelson Mandela" },
-  { text: "An investment in knowledge pays the best interest.", author: "Benjamin Franklin" },
-  { text: "The more that you read, the more things you will know.", author: "Dr. Seuss" },
-  { text: "Live as if you were to die tomorrow. Learn as if you were to live forever.", author: "Mahatma Gandhi" },
-  { text: "Success is no accident. It is hard work, perseverance, learning, studying and sacrifice.", author: "Pelé" },
-  { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
-]
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || `Server error ${res.status}`)
+    if (!data.questions || data.questions.length === 0) throw new Error('No questions returned from AI')
 
-function calcStreak(quizzes) {
-  if (!quizzes.length) return 0
+    // Normalise new format { question, options, correctAnswer, explanation }
+    // into legacy format  { q, options, answer, explanation } used by the quiz UI
+    const questions = data.questions.map(q => {
+      if (q.q !== undefined) return q
+      const answerIndex = q.options.indexOf(q.correctAnswer)
+      return {
+        q: q.question,
+        options: q.options,
+        answer: answerIndex >= 0 ? answerIndex : 0,
+        explanation: q.explanation || ''
+      }
+    })
+
+    return { questions, provider: data.provider || 'unknown' }
+}
   let streak = 0
   let d = new Date()
   for (let i = 0; i < 30; i++) {
@@ -109,7 +122,26 @@ function fallbackQuestions(subject, grade) {
     { q: 'Solve: x + 5 = 12', options: ['6','7','8','17'], answer: 1, explanation: 'x = 12 − 5 = 7' },
   ]
 }
-
+async function start() {
+  setLoading(true)
+  setQuiz(null); setQIdx(0); setSelected(null)
+  setAnswered(false); setDone(false); setFinalScore(0)
+  answersRef.current = []
+  try {
+    const result = await generateQuiz(grade, subject)
+    setQuiz(result.questions)
+    if (result.provider === 'anthropic') {
+      show('Quiz generated via Anthropic (Gemini unavailable)', 'info')
+    } else if (result.provider === 'gemini') {
+      console.log('[EduSpark] Quiz generated via Gemini')
+    }
+  } catch (err) {
+    console.error('Quiz generation failed:', err.message)
+    setQuiz(fallbackQuestions(subject, grade))
+    show('AI unavailable — showing practice questions. Check API keys in Vercel.', 'error')
+  }
+  setLoading(false)
+}
 function QuizSection({ profile }) {
   const [grade, setGrade] = useState(profile?.grade || '7')
   const [subject, setSubject] = useState('Mathematics')
@@ -126,12 +158,7 @@ function QuizSection({ profile }) {
 
   useEffect(() => { if (profile?.id) fetchQuizResults(profile.id).then(setHistory).catch(() => {}) }, [profile?.id])
 
-  async function start() {
-    setLoading(true); setQuiz(null); setQIdx(0); setSelected(null)
-    setAnswered(false); setScore(0); setDone(false); setFinalScore(0)
-    try { setQuiz(await generateQuiz(grade, subject)) }
-    catch (err) { setQuiz(fallbackQuestions(subject, grade)); show('Using offline questions — check ANTHROPIC_KEY in Vercel', 'error') }
-    setLoading(false)
+  
   }
 
   function answer(i) {

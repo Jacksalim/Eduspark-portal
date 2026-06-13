@@ -3,7 +3,6 @@ import react from '@vitejs/plugin-react'
 
 // ── Local development quiz API plugin ─────────────────────────────────────────
 // Mirrors api/quiz.js so the AI Quiz works with `npm run dev` — no vercel dev needed.
-// Requires ANTHROPIC_KEY (or ANTHROPIC_API_KEY) in your local .env file.
 const devQuizApiPlugin = () => ({
   name: 'dev-quiz-api',
   configureServer(server) {
@@ -43,7 +42,7 @@ const devQuizApiPlugin = () => ({
             return
           }
 
-          const prompt = `Generate exactly 5 multiple-choice quiz questions for Grade ${grade} ${subject} students, aligned with the South African CAPS curriculum.
+          const prompt = `Generate exactly 5 multiple-choice quiz questions for Grade ${grade} ${subject} students, aligned with the Kenyan CBC curriculum.
 
 Rules:
 - Questions must be appropriate for Grade ${grade} level
@@ -52,15 +51,22 @@ Rules:
 - Explanations must be educational and clear
 
 Return ONLY valid JSON with no markdown, no code fences, no preamble. Exactly this structure:
-{"questions":[{"q":"question text","options":["A text","B text","C text","D text"],"answer":0,"explanation":"why this answer is correct"}]}
+{
+  "questions": [
+    {
+      "question": "question text",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctAnswer": "Option A",
+      "explanation": "why this answer is correct"
+    }
+  ]
+}
 
-"answer" is the 0-based index of the correct option (0=A, 1=B, 2=C, 3=D).`
+CRITICAL: "correctAnswer" must be the exact full string of the correct option (not an index).`
 
           const MODELS = [
             process.env.ANTHROPIC_MODEL,
-            'claude-opus-4-5',
-            'claude-sonnet-4-5',
-            'claude-opus-4-20250514',
+            'claude-sonnet-4-6',
             'claude-sonnet-4-20250514',
             'claude-3-5-sonnet-20241022',
           ].filter(Boolean)
@@ -104,7 +110,7 @@ Return ONLY valid JSON with no markdown, no code fences, no preamble. Exactly th
                 send(502, { error: 'Could not parse AI response', raw: rawText.slice(0, 300) }); return
               }
 
-              send(200, { questions: parsed.questions, model })
+              send(200, { questions: parsed.questions, model, provider: 'anthropic' })
               return
             } catch (err) { lastErr = err.message }
           }
@@ -119,7 +125,6 @@ Return ONLY valid JSON with no markdown, no code fences, no preamble. Exactly th
 
 // ── Local development send-email plugin ───────────────────────────────────────
 // Mirrors api/send-email.js so welcome emails can be tested locally.
-// Requires RESEND_API_KEY in your .env file.
 const devSendEmailPlugin = () => ({
   name: 'dev-send-email',
   configureServer(server) {
@@ -150,7 +155,6 @@ const devSendEmailPlugin = () => ({
           try { payload = JSON.parse(body) }
           catch { send(400, { error: 'Invalid JSON' }); return }
 
-          // Dynamically load the serverless handler to reuse its templates
           const { default: handler } = await import('./api/send-email.js')
           const mockReq = { method: 'POST', body: payload }
           const mockRes = {

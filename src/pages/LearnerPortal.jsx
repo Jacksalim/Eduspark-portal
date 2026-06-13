@@ -33,14 +33,14 @@ function getAchievements(quizzes, watchedIds) {
   const avg = quizzes.length ? Math.round(quizzes.reduce((a, q) => a + q.percent, 0) / quizzes.length) : 0
   const streak = calcStreak(quizzes)
   return [
-    { icon: '🌟', label: 'First Step',     desc: 'Took your first quiz',    earned: quizzes.length >= 1 },
-    { icon: '📺', label: 'Video Star',     desc: 'Watched your first video', earned: watchedIds.length >= 1 },
-    { icon: '📚', label: 'Quiz Master',    desc: 'Completed 5 quizzes',      earned: quizzes.length >= 5 },
-    { icon: '🏆', label: 'Perfect Score',  desc: 'Scored 100% on a quiz',    earned: quizzes.some(q => q.percent === 100) },
-    { icon: '🔥', label: 'On Fire',        desc: '3-day learning streak',    earned: streak >= 3 },
-    { icon: '🎯', label: 'Sharp Shooter',  desc: 'Average score ≥ 80%',      earned: avg >= 80 && quizzes.length >= 3 },
-    { icon: '⚡', label: 'Speed Learner',  desc: 'Completed 10 quizzes',     earned: quizzes.length >= 10 },
-    { icon: '👑', label: 'Champion',       desc: 'Completed 20 quizzes',     earned: quizzes.length >= 20 },
+    { icon: '🌟', label: 'First Step',    desc: 'Took your first quiz',     earned: quizzes.length >= 1 },
+    { icon: '📺', label: 'Video Star',    desc: 'Watched your first video',  earned: watchedIds.length >= 1 },
+    { icon: '📚', label: 'Quiz Master',   desc: 'Completed 5 quizzes',       earned: quizzes.length >= 5 },
+    { icon: '🏆', label: 'Perfect Score', desc: 'Scored 100% on a quiz',     earned: quizzes.some(q => q.percent === 100) },
+    { icon: '🔥', label: 'On Fire',       desc: '3-day learning streak',     earned: streak >= 3 },
+    { icon: '🎯', label: 'Sharp Shooter', desc: 'Average score ≥ 80%',       earned: avg >= 80 && quizzes.length >= 3 },
+    { icon: '⚡', label: 'Speed Learner', desc: 'Completed 10 quizzes',      earned: quizzes.length >= 10 },
+    { icon: '👑', label: 'Champion',      desc: 'Completed 20 quizzes',      earned: quizzes.length >= 20 },
   ]
 }
 
@@ -89,24 +89,53 @@ function VideoModal({ video, userId, onClose, onWatched }) {
 }
 
 // ── Quiz Section ──────────────────────────────────────────────────────────────
-async function generateQuiz(grade, subject) {
+async function fetchQuiz(grade, subject) {
   const res = await fetch('/api/quiz', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ grade, subject })
   })
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Error ${res.status}`) }
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}))
+    throw new Error(e.error || `Server error ${res.status}`)
+  }
   const data = await res.json()
-  if (!data.questions?.length) throw new Error('No questions returned')
-  return data.questions
+  if (!data.questions?.length) throw new Error('No questions returned from AI')
+  return { questions: data.questions, provider: data.provider || 'ai' }
 }
+
 function fallbackQuestions(subject, grade) {
   return [
-    { q: `Core concept in Grade ${grade} ${subject}?`, options: ['Option A','Option B','Option C','Option D'], answer: 0, explanation: 'Placeholder quiz — add ANTHROPIC_KEY to Vercel env vars.' },
-    { q: 'What is 7 × 8?', options: ['54','56','48','64'], answer: 1, explanation: '7 × 8 = 56' },
-    { q: 'What is 15% of 200?', options: ['30','25','35','20'], answer: 0, explanation: '15/100 × 200 = 30' },
-    { q: 'Simplify: 4/8', options: ['1/3','1/2','2/3','3/4'], answer: 1, explanation: '4÷4=1, 8÷4=2 → 1/2' },
-    { q: 'Solve: x + 5 = 12', options: ['6','7','8','17'], answer: 1, explanation: 'x = 12 − 5 = 7' },
+    {
+      question: `What is a key habit for Grade ${grade} ${subject} success?`,
+      options: ['Study daily', 'Skip practice', 'Avoid revision', 'Guess answers'],
+      correctAnswer: 'Study daily',
+      explanation: 'Offline fallback — add GEMINI_API_KEY or ANTHROPIC_API_KEY to Vercel environment variables.'
+    },
+    {
+      question: 'What is 7 × 8?',
+      options: ['54', '56', '48', '64'],
+      correctAnswer: '56',
+      explanation: '7 × 8 = 56'
+    },
+    {
+      question: 'What is 15% of 200?',
+      options: ['30', '25', '35', '20'],
+      correctAnswer: '30',
+      explanation: '15 ÷ 100 × 200 = 30'
+    },
+    {
+      question: 'Simplify: 4/8',
+      options: ['1/3', '1/2', '2/3', '3/4'],
+      correctAnswer: '1/2',
+      explanation: '4 ÷ 4 = 1 and 8 ÷ 4 = 2, so 4/8 = 1/2'
+    },
+    {
+      question: 'Solve: x + 5 = 12',
+      options: ['6', '7', '8', '17'],
+      correctAnswer: '7',
+      explanation: 'x = 12 − 5 = 7'
+    },
   ]
 }
 
@@ -114,7 +143,9 @@ function QuizSection({ profile }) {
   const [grade, setGrade] = useState(profile?.grade || '7')
   const [subject, setSubject] = useState('Mathematics')
   const [quiz, setQuiz] = useState(null)
+  const [provider, setProvider] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [loadingMsg, setLoadingMsg] = useState('Generating quiz…')
   const [qIdx, setQIdx] = useState(0)
   const [selected, setSelected] = useState(null)
   const [answered, setAnswered] = useState(false)
@@ -129,19 +160,42 @@ function QuizSection({ profile }) {
   async function start() {
     setLoading(true); setQuiz(null); setQIdx(0); setSelected(null)
     setAnswered(false); setScore(0); setDone(false); setFinalScore(0)
-    try { setQuiz(await generateQuiz(grade, subject)) }
-    catch (err) { setQuiz(fallbackQuestions(subject, grade)); show('Using offline questions — check ANTHROPIC_KEY in Vercel', 'error') }
-    setLoading(false)
+    setProvider(null); setLoadingMsg('Connecting to AI…')
+
+    const msgs = [
+      'Connecting to AI…',
+      'Crafting your questions…',
+      'Aligning with CBC curriculum…',
+      'Almost ready…',
+    ]
+    let mi = 0
+    const msgTimer = setInterval(() => { mi = (mi + 1) % msgs.length; setLoadingMsg(msgs[mi]) }, 2500)
+
+    try {
+      const result = await fetchQuiz(grade, subject)
+      setQuiz(result.questions)
+      setProvider(result.provider)
+      if (result.provider === 'anthropic') {
+        show('Gemini unavailable — switched to Claude AI ✓', 'info')
+      }
+    } catch (err) {
+      setQuiz(fallbackQuestions(subject, grade))
+      setProvider('offline')
+      show('AI unavailable — using offline questions. Check your API keys in Vercel.', 'error')
+    } finally {
+      clearInterval(msgTimer)
+      setLoading(false)
+    }
   }
 
-  function answer(i) {
+  function answer(optionText) {
     if (answered) return
-    setSelected(i); setAnswered(true)
-    if (i === quiz[qIdx].answer) setScore(s => s + 1)
+    setSelected(optionText); setAnswered(true)
+    if (optionText === quiz[qIdx].correctAnswer) setScore(s => s + 1)
   }
 
   async function next() {
-    const lastCorrect = selected === quiz[qIdx].answer ? 1 : 0
+    const lastCorrect = selected === quiz[qIdx].correctAnswer ? 1 : 0
     const computed = score + lastCorrect
     if (qIdx + 1 >= quiz.length) {
       setFinalScore(computed); setDone(true)
@@ -162,7 +216,7 @@ function QuizSection({ profile }) {
       {ToastEl}
       <div className="section-header">
         <h2>🤖 AI Quiz Generator</h2>
-        <p>Generate curriculum-aligned questions for any grade and subject using Claude AI.</p>
+        <p>Generate curriculum-aligned questions for any grade and subject using AI.</p>
       </div>
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24, alignItems: 'flex-end' }}>
@@ -186,8 +240,8 @@ function QuizSection({ profile }) {
       {loading && (
         <div className="card card-pad" style={{ textAlign: 'center', padding: '56px 24px' }}>
           <div className="spinner" style={{ margin: '0 auto 16px' }} />
-          <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>Claude is crafting your quiz…</div>
-          <div style={{ color: '#aaa', fontSize: '.85rem', marginTop: 6 }}>Grade {grade} {subject} — curriculum-aligned questions</div>
+          <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>{loadingMsg}</div>
+          <div style={{ color: '#aaa', fontSize: '.85rem', marginTop: 6 }}>Grade {grade} {subject} — CBC curriculum-aligned</div>
         </div>
       )}
 
@@ -198,30 +252,39 @@ function QuizSection({ profile }) {
               <h3 style={{ fontSize: '1.05rem', marginBottom: 2 }}>{subject} · Grade {grade}</h3>
               <div style={{ color: '#888', fontSize: '.8rem' }}>Question {qIdx + 1} of {quiz.length}</div>
             </div>
-            <span className="pill pill-green">{score} correct</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {provider && provider !== 'offline' && (
+                <span className="pill" style={{ background: provider === 'gemini' ? '#e8f5e9' : '#e8eaf6', color: provider === 'gemini' ? '#2e7d32' : '#3949ab', fontSize: '.7rem' }}>
+                  {provider === 'gemini' ? '✦ Gemini' : '✦ Claude'}
+                </span>
+              )}
+              <span className="pill pill-green">{score} correct</span>
+            </div>
           </div>
           <div style={{ marginBottom: 20 }}><ProgressBar value={(qIdx / quiz.length) * 100} /></div>
-          <div style={{ fontSize: '1.04rem', fontWeight: 600, lineHeight: 1.65, marginBottom: 22 }}>{quiz[qIdx].q}</div>
+          <div style={{ fontSize: '1.04rem', fontWeight: 600, lineHeight: 1.65, marginBottom: 22 }}>{quiz[qIdx].question}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {quiz[qIdx].options.map((opt, i) => {
+              const isCorrect = opt === quiz[qIdx].correctAnswer
+              const isSelected = opt === selected
               let cls = 'option-btn'
-              if (answered) { if (i === quiz[qIdx].answer) cls += ' correct'; else if (i === selected) cls += ' wrong' }
-              else if (selected === i) cls += ' selected'
+              if (answered) { if (isCorrect) cls += ' correct'; else if (isSelected) cls += ' wrong' }
+              else if (isSelected) cls += ' selected'
               return (
-                <button key={i} className={cls} disabled={answered} onClick={() => answer(i)}>
+                <button key={i} className={cls} disabled={answered} onClick={() => answer(opt)}>
                   <span className="option-label">{['A','B','C','D'][i]}</span>{opt}
                 </button>
               )
             })}
           </div>
           {answered && (
-            <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 8, fontSize: '.87rem', background: selected === quiz[qIdx].answer ? '#e6f5e6' : 'var(--rose-light)', color: selected === quiz[qIdx].answer ? '#256625' : 'var(--rose)' }}>
+            <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 8, fontSize: '.87rem', background: selected === quiz[qIdx].correctAnswer ? '#e6f5e6' : 'var(--rose-light)', color: selected === quiz[qIdx].correctAnswer ? '#256625' : 'var(--rose)' }}>
               💡 {quiz[qIdx].explanation}
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
             <span style={{ color: '#aaa', fontSize: '.84rem' }}>
-              {answered ? (selected === quiz[qIdx].answer ? '✅ Correct!' : '❌ Incorrect') : 'Select an answer above'}
+              {answered ? (selected === quiz[qIdx].correctAnswer ? '✅ Correct!' : '❌ Incorrect') : 'Select an answer above'}
             </span>
             {answered && (
               <button className="btn btn-teal btn-sm" onClick={next}>
@@ -290,7 +353,6 @@ function DashboardHome({ profile, quizzes, progress, watchedIds, loading, onNavi
   const earned = achievements.filter(a => a.earned).length
   const weekChart = weeklyData(quizzes)
   const maxCount = Math.max(...weekChart.map(d => d.count), 1)
-
   const subjectColors = { Mathematics: 'var(--teal)', 'Business Studies': 'var(--purple)', English: 'var(--rose)', 'Natural Sciences': '#2d7a2d', Geography: '#b87a00', History: '#5c3a1e', 'Life Orientation': 'var(--teal)', Technology: '#1a5fbf', Accounting: 'var(--purple)', 'Physical Sciences': '#2d7a2d' }
 
   if (loading) return (
@@ -304,7 +366,6 @@ function DashboardHome({ profile, quizzes, progress, watchedIds, loading, onNavi
 
   return (
     <div>
-      {/* Hero Welcome */}
       <div className="dash-hero" style={{ background: 'linear-gradient(135deg, var(--ink) 0%, #0f2a2a 60%, var(--teal) 100%)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
           <div>
@@ -334,15 +395,14 @@ function DashboardHome({ profile, quizzes, progress, watchedIds, loading, onNavi
         </div>
       </div>
 
-      {/* Stats Grid */}
       <div className="stats-grid-6">
         {[
-          { icon: '📺', label: 'Videos Watched',    val: watchedIds.length,             color: 'var(--teal)' },
-          { icon: '📝', label: 'Quizzes Done',       val: quizzes.length,                color: '#6b4fa0' },
-          { icon: '⭐', label: 'Average Score',      val: quizzes.length ? `${avgScore}%` : '—', color: 'var(--gold)' },
-          { icon: '📊', label: 'Overall Progress',   val: progress.length ? `${overallProgress}%` : '—', color: 'var(--rose)' },
-          { icon: '🔥', label: 'Learning Streak',    val: `${streak}d`,                  color: '#e07b39' },
-          { icon: '📚', label: 'Subjects Active',    val: uniqueSubjects || progress.length, color: '#2d7a2d' },
+          { icon: '📺', label: 'Videos Watched',  val: watchedIds.length,                          color: 'var(--teal)' },
+          { icon: '📝', label: 'Quizzes Done',     val: quizzes.length,                             color: '#6b4fa0' },
+          { icon: '⭐', label: 'Average Score',    val: quizzes.length ? `${avgScore}%` : '—',      color: 'var(--gold)' },
+          { icon: '📊', label: 'Overall Progress', val: progress.length ? `${overallProgress}%` : '—', color: 'var(--rose)' },
+          { icon: '🔥', label: 'Learning Streak',  val: `${streak}d`,                               color: '#e07b39' },
+          { icon: '📚', label: 'Subjects Active',  val: uniqueSubjects || progress.length,          color: '#2d7a2d' },
         ].map(s => (
           <div key={s.label} className="stat-card-v2">
             <div className="stat-accent" style={{ background: s.color }} />
@@ -354,14 +414,13 @@ function DashboardHome({ profile, quizzes, progress, watchedIds, loading, onNavi
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 24 }}>
-        {/* Quick Actions */}
         <div className="card card-pad">
           <h4 style={{ marginBottom: 16, fontSize: '.95rem' }}>⚡ Quick Actions</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {[
-              { icon: '▶️', label: 'Watch Video Lessons', section: 'lessons', color: 'var(--teal)' },
-              { icon: '🤖', label: 'Take an AI Quiz',     section: 'quiz',    color: 'var(--purple)' },
-              { icon: '📊', label: 'View My Progress',    section: 'progress',color: 'var(--rose)' },
+              { icon: '▶️', label: 'Watch Video Lessons', section: 'lessons',     color: 'var(--teal)' },
+              { icon: '🤖', label: 'Take an AI Quiz',     section: 'quiz',        color: 'var(--purple)' },
+              { icon: '📊', label: 'View My Progress',    section: 'progress',    color: 'var(--rose)' },
               { icon: '🏆', label: 'See Leaderboard',     section: 'leaderboard', color: 'var(--gold)' },
             ].map(a => (
               <button key={a.section} onClick={() => onNavigate(a.section)}
@@ -374,7 +433,6 @@ function DashboardHome({ profile, quizzes, progress, watchedIds, loading, onNavi
           </div>
         </div>
 
-        {/* Weekly Activity */}
         <div className="card card-pad">
           <h4 style={{ marginBottom: 6, fontSize: '.95rem' }}>📅 Weekly Activity</h4>
           <p style={{ color: '#aaa', fontSize: '.78rem', marginBottom: 20 }}>Quizzes completed this week</p>
@@ -396,7 +454,6 @@ function DashboardHome({ profile, quizzes, progress, watchedIds, loading, onNavi
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 24 }}>
-        {/* Subject Progress */}
         {progress.length > 0 && (
           <div className="card card-pad">
             <h4 style={{ marginBottom: 18, fontSize: '.95rem' }}>📚 Subject Progress</h4>
@@ -412,7 +469,6 @@ function DashboardHome({ profile, quizzes, progress, watchedIds, loading, onNavi
           </div>
         )}
 
-        {/* Recent Quiz Activity */}
         <div className="card card-pad">
           <h4 style={{ marginBottom: 16, fontSize: '.95rem' }}>🕐 Recent Activity</h4>
           {quizzes.length === 0 ? (
@@ -435,7 +491,6 @@ function DashboardHome({ profile, quizzes, progress, watchedIds, loading, onNavi
         </div>
       </div>
 
-      {/* Achievements */}
       <div className="card card-pad">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <h4 style={{ fontSize: '.95rem', margin: 0 }}>🏅 Achievements</h4>
@@ -484,10 +539,10 @@ function ProgressSection({ profile }) {
 
       <div className="stats-grid" style={{ marginBottom: 24 }}>
         {[
-          { num: quizzes.length, label: 'Quizzes Taken', sub: 'Total', color: 'var(--teal)' },
-          { num: quizzes.length ? `${avgScore}%` : '—', label: 'Average Score', sub: 'All subjects', color: 'var(--gold)' },
-          { num: progress.length, label: 'Subjects Active', sub: 'Tracked', color: 'var(--purple)' },
-          { num: `${streak}d`, label: 'Current Streak', sub: 'Day streak', color: '#e07b39' },
+          { num: quizzes.length,                            label: 'Quizzes Taken',  sub: 'Total',        color: 'var(--teal)' },
+          { num: quizzes.length ? `${avgScore}%` : '—',    label: 'Average Score',  sub: 'All subjects', color: 'var(--gold)' },
+          { num: progress.length,                           label: 'Subjects Active',sub: 'Tracked',      color: 'var(--purple)' },
+          { num: `${streak}d`,                              label: 'Current Streak', sub: 'Day streak',   color: '#e07b39' },
         ].map(s => (
           <div key={s.label} className="stat-card">
             <div className="stat-num" style={{ color: s.color }}>{s.num}</div>
@@ -634,7 +689,7 @@ export default function LearnerPortal({ profile }) {
 
   useEffect(() => {
     setVideoLoading(true)
-    fetchVideos({ subject, grade }).then(setVideos).catch(() => setVideos([]).finally(() => setVideoLoading(false)))
+    fetchVideos({ subject, grade }).then(setVideos).catch(() => setVideos([]))
       .finally(() => setVideoLoading(false))
   }, [subject, grade])
 

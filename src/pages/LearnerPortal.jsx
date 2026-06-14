@@ -89,11 +89,24 @@ function VideoModal({ video, userId, onClose, onWatched }) {
 }
 
 // ── Quiz Section ──────────────────────────────────────────────────────────────
-async function fetchQuiz(grade, subject) {
+
+// Track last 15 question texts in session memory to send to API for deduplication
+const quizSessionHistory = { questions: [] }
+function addToHistory(questions) {
+  const texts = questions.map(q => q.question)
+  quizSessionHistory.questions = [...quizSessionHistory.questions, ...texts].slice(-15)
+}
+
+async function fetchQuiz(grade, subject, difficulty = 'mixed') {
   const res = await fetch('/api/quiz', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ grade, subject })
+    body: JSON.stringify({
+      grade,
+      subject,
+      difficulty,
+      recentQuestions: quizSessionHistory.questions,
+    })
   })
   if (!res.ok) {
     const e = await res.json().catch(() => ({}))
@@ -101,37 +114,48 @@ async function fetchQuiz(grade, subject) {
   }
   const data = await res.json()
   if (!data.questions?.length) throw new Error('No questions returned from AI')
-  return { questions: data.questions, provider: data.provider || 'ai' }
+  addToHistory(data.questions)
+  return {
+    questions:  data.questions,
+    provider:   data.provider || 'ai',
+    topics:     data.metadata?.topics || [],
+    difficulty: data.metadata?.difficulty || difficulty,
+  }
 }
 
 function fallbackQuestions(subject, grade) {
   return [
     {
       question: `What is a key habit for Grade ${grade} ${subject} success?`,
+      type: 'multiple_choice',
       options: ['Study daily', 'Skip practice', 'Avoid revision', 'Guess answers'],
       correctAnswer: 'Study daily',
       explanation: 'Offline fallback — add GEMINI_API_KEY or ANTHROPIC_API_KEY to Vercel environment variables.'
     },
     {
       question: 'What is 7 × 8?',
+      type: 'multiple_choice',
       options: ['54', '56', '48', '64'],
       correctAnswer: '56',
       explanation: '7 × 8 = 56'
     },
     {
-      question: 'What is 15% of 200?',
-      options: ['30', '25', '35', '20'],
-      correctAnswer: '30',
-      explanation: '15 ÷ 100 × 200 = 30'
+      question: 'Is the Earth the third planet from the Sun?',
+      type: 'true_false',
+      options: ['True', 'False'],
+      correctAnswer: 'True',
+      explanation: 'Earth is indeed the third planet from the Sun, after Mercury and Venus.'
     },
     {
       question: 'Simplify: 4/8',
+      type: 'multiple_choice',
       options: ['1/3', '1/2', '2/3', '3/4'],
       correctAnswer: '1/2',
       explanation: '4 ÷ 4 = 1 and 8 ÷ 4 = 2, so 4/8 = 1/2'
     },
     {
       question: 'Solve: x + 5 = 12',
+      type: 'multiple_choice',
       options: ['6', '7', '8', '17'],
       correctAnswer: '7',
       explanation: 'x = 12 − 5 = 7'
@@ -139,11 +163,15 @@ function fallbackQuestions(subject, grade) {
   ]
 }
 
+const DIFFICULTY_LABELS = { easy: '🟢 Easy', medium: '🟡 Medium', hard: '🔴 Hard', mixed: '🎲 Mixed' }
+
 function QuizSection({ profile }) {
   const [grade, setGrade] = useState(profile?.grade || '7')
   const [subject, setSubject] = useState('Mathematics')
+  const [difficulty, setDifficulty] = useState('mixed')
   const [quiz, setQuiz] = useState(null)
   const [provider, setProvider] = useState(null)
+  const [topics, setTopics] = useState([])
   const [loading, setLoading] = useState(false)
   const [loadingMsg, setLoadingMsg] = useState('Generating quiz…')
   const [qIdx, setQIdx] = useState(0)
@@ -160,21 +188,23 @@ function QuizSection({ profile }) {
   async function start() {
     setLoading(true); setQuiz(null); setQIdx(0); setSelected(null)
     setAnswered(false); setScore(0); setDone(false); setFinalScore(0)
-    setProvider(null); setLoadingMsg('Connecting to AI…')
+    setProvider(null); setTopics([]); setLoadingMsg('Connecting to AI…')
 
     const msgs = [
       'Connecting to AI…',
-      'Crafting your questions…',
+      'Selecting fresh topics…',
+      'Crafting unique questions…',
       'Aligning with CBC curriculum…',
       'Almost ready…',
     ]
     let mi = 0
-    const msgTimer = setInterval(() => { mi = (mi + 1) % msgs.length; setLoadingMsg(msgs[mi]) }, 2500)
+    const msgTimer = setInterval(() => { mi = (mi + 1) % msgs.length; setLoadingMsg(msgs[mi]) }, 2200)
 
     try {
-      const result = await fetchQuiz(grade, subject)
+      const result = await fetchQuiz(grade, subject, difficulty)
       setQuiz(result.questions)
       setProvider(result.provider)
+      setTopics(result.topics || [])
       if (result.provider === 'anthropic') {
         show('Gemini unavailable — switched to Claude AI ✓', 'info')
       }
@@ -216,20 +246,29 @@ function QuizSection({ profile }) {
       {ToastEl}
       <div className="section-header">
         <h2>🤖 AI Quiz Generator</h2>
-        <p>Generate curriculum-aligned questions for any grade and subject using AI.</p>
+        <p>Fresh curriculum-aligned questions every time — powered by Gemini and Claude AI.</p>
       </div>
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24, alignItems: 'flex-end' }}>
         <div className="form-group" style={{ margin: 0 }}>
           <label style={{ fontSize: '.75rem', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>Grade</label>
-          <select className="form-control" value={grade} onChange={e => setGrade(e.target.value)} style={{ width: 130 }}>
+          <select className="form-control" value={grade} onChange={e => setGrade(e.target.value)} style={{ width: 120 }}>
             {GRADES.map(g => <option key={g} value={g}>{g === 'R' ? 'Grade R' : `Grade ${g}`}</option>)}
           </select>
         </div>
         <div className="form-group" style={{ margin: 0 }}>
           <label style={{ fontSize: '.75rem', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>Subject</label>
-          <select className="form-control" value={subject} onChange={e => setSubject(e.target.value)} style={{ width: 200 }}>
+          <select className="form-control" value={subject} onChange={e => setSubject(e.target.value)} style={{ width: 180 }}>
             {Object.keys(SUBJECTS).map(s => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label style={{ fontSize: '.75rem', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>Difficulty</label>
+          <select className="form-control" value={difficulty} onChange={e => setDifficulty(e.target.value)} style={{ width: 140 }}>
+            <option value="mixed">🎲 Mixed</option>
+            <option value="easy">🟢 Easy</option>
+            <option value="medium">🟡 Medium</option>
+            <option value="hard">🔴 Hard</option>
           </select>
         </div>
         <button className="btn btn-teal" onClick={start} disabled={loading} style={{ gap: 8 }}>
@@ -241,7 +280,7 @@ function QuizSection({ profile }) {
         <div className="card card-pad" style={{ textAlign: 'center', padding: '56px 24px' }}>
           <div className="spinner" style={{ margin: '0 auto 16px' }} />
           <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>{loadingMsg}</div>
-          <div style={{ color: '#aaa', fontSize: '.85rem', marginTop: 6 }}>Grade {grade} {subject} — CBC curriculum-aligned</div>
+          <div style={{ color: '#aaa', fontSize: '.85rem', marginTop: 6 }}>Grade {grade} {subject} · {DIFFICULTY_LABELS[difficulty]} · CBC curriculum-aligned</div>
         </div>
       )}
 
@@ -252,20 +291,47 @@ function QuizSection({ profile }) {
               <h3 style={{ fontSize: '1.05rem', marginBottom: 2 }}>{subject} · Grade {grade}</h3>
               <div style={{ color: '#888', fontSize: '.8rem' }}>Question {qIdx + 1} of {quiz.length}</div>
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               {provider && provider !== 'offline' && (
                 <span className="pill" style={{ background: provider === 'gemini' ? '#e8f5e9' : '#e8eaf6', color: provider === 'gemini' ? '#2e7d32' : '#3949ab', fontSize: '.7rem' }}>
                   {provider === 'gemini' ? '✦ Gemini' : '✦ Claude'}
                 </span>
               )}
+              <span className="pill" style={{ background: '#fff8e1', color: '#f57f17', fontSize: '.7rem' }}>
+                {DIFFICULTY_LABELS[difficulty] || '🎲 Mixed'}
+              </span>
               <span className="pill pill-green">{score} correct</span>
             </div>
           </div>
-          <div style={{ marginBottom: 20 }}><ProgressBar value={(qIdx / quiz.length) * 100} /></div>
-          <div style={{ fontSize: '1.04rem', fontWeight: 600, lineHeight: 1.65, marginBottom: 22 }}>{quiz[qIdx].question}</div>
+
+          <div style={{ marginBottom: 16 }}><ProgressBar value={(qIdx / quiz.length) * 100} /></div>
+
+          {topics.length > 0 && qIdx === 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+              {topics.map(t => (
+                <span key={t} style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 20, background: '#f0f4ff', color: '#3949ab', border: '1px solid #c5cae9' }}>
+                  📌 {t}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {quiz[qIdx].type && (
+            <div style={{ fontSize: '.7rem', color: '#aaa', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '1px' }}>
+              {quiz[qIdx].type === 'true_false'  ? '✓/✗ True or False'
+                : quiz[qIdx].type === 'fill_blank' ? '📝 Fill in the Blank'
+                : quiz[qIdx].type === 'scenario'   ? '🌍 Scenario-Based'
+                : '🔘 Multiple Choice'}
+            </div>
+          )}
+
+          <div style={{ fontSize: '1.04rem', fontWeight: 600, lineHeight: 1.65, marginBottom: 22 }}>
+            {quiz[qIdx].question}
+          </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {quiz[qIdx].options.map((opt, i) => {
-              const isCorrect = opt === quiz[qIdx].correctAnswer
+              const isCorrect  = opt === quiz[qIdx].correctAnswer
               const isSelected = opt === selected
               let cls = 'option-btn'
               if (answered) { if (isCorrect) cls += ' correct'; else if (isSelected) cls += ' wrong' }
@@ -277,11 +343,13 @@ function QuizSection({ profile }) {
               )
             })}
           </div>
+
           {answered && (
             <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 8, fontSize: '.87rem', background: selected === quiz[qIdx].correctAnswer ? '#e6f5e6' : 'var(--rose-light)', color: selected === quiz[qIdx].correctAnswer ? '#256625' : 'var(--rose)' }}>
               💡 {quiz[qIdx].explanation}
             </div>
           )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
             <span style={{ color: '#aaa', fontSize: '.84rem' }}>
               {answered ? (selected === quiz[qIdx].correctAnswer ? '✅ Correct!' : '❌ Incorrect') : 'Select an answer above'}
@@ -304,7 +372,16 @@ function QuizSection({ profile }) {
             {finalScore}/{quiz.length}
           </div>
           <div style={{ color: '#777', marginTop: 8, marginBottom: 6, fontSize: '1.1rem', fontWeight: 600 }}>{pct}%</div>
-          <div style={{ color: '#aaa', fontSize: '.87rem', marginBottom: 24 }}>{subject} · Grade {grade}</div>
+          <div style={{ color: '#aaa', fontSize: '.87rem', marginBottom: 6 }}>{subject} · Grade {grade} · {DIFFICULTY_LABELS[difficulty]}</div>
+          {topics.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 20 }}>
+              {topics.map(t => (
+                <span key={t} style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 20, background: '#f0f4ff', color: '#3949ab', border: '1px solid #c5cae9' }}>
+                  📌 {t}
+                </span>
+              ))}
+            </div>
+          )}
           <div style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 28, color: 'var(--ink)' }}>
             {pct === 100 ? '🌟 Perfect score! Outstanding work!'
               : pct >= 70 ? '💪 Great job! Keep practising!'
@@ -397,12 +474,12 @@ function DashboardHome({ profile, quizzes, progress, watchedIds, loading, onNavi
 
       <div className="stats-grid-6">
         {[
-          { icon: '📺', label: 'Videos Watched',  val: watchedIds.length,                          color: 'var(--teal)' },
-          { icon: '📝', label: 'Quizzes Done',     val: quizzes.length,                             color: '#6b4fa0' },
-          { icon: '⭐', label: 'Average Score',    val: quizzes.length ? `${avgScore}%` : '—',      color: 'var(--gold)' },
+          { icon: '📺', label: 'Videos Watched',  val: watchedIds.length,                             color: 'var(--teal)' },
+          { icon: '📝', label: 'Quizzes Done',     val: quizzes.length,                                color: '#6b4fa0' },
+          { icon: '⭐', label: 'Average Score',    val: quizzes.length ? `${avgScore}%` : '—',         color: 'var(--gold)' },
           { icon: '📊', label: 'Overall Progress', val: progress.length ? `${overallProgress}%` : '—', color: 'var(--rose)' },
-          { icon: '🔥', label: 'Learning Streak',  val: `${streak}d`,                               color: '#e07b39' },
-          { icon: '📚', label: 'Subjects Active',  val: uniqueSubjects || progress.length,          color: '#2d7a2d' },
+          { icon: '🔥', label: 'Learning Streak',  val: `${streak}d`,                                  color: '#e07b39' },
+          { icon: '📚', label: 'Subjects Active',  val: uniqueSubjects || progress.length,             color: '#2d7a2d' },
         ].map(s => (
           <div key={s.label} className="stat-card-v2">
             <div className="stat-accent" style={{ background: s.color }} />
@@ -527,7 +604,6 @@ function ProgressSection({ profile }) {
 
   const subjectColors = { Mathematics: 'var(--teal)', 'Business Studies': 'var(--purple)', English: 'var(--rose)', 'Natural Sciences': '#2d7a2d', Geography: '#b87a00', History: '#5c3a1e', 'Life Orientation': 'var(--teal)', Technology: '#1a5fbf', Accounting: 'var(--purple)', 'Physical Sciences': '#2d7a2d' }
   const avgScore = quizzes.length ? Math.round(quizzes.reduce((a, q) => a + q.percent, 0) / quizzes.length) : 0
-  const overallProgress = progress.length ? Math.round(progress.reduce((a, p) => a + p.percent, 0) / progress.length) : 0
   const streak = calcStreak(quizzes)
 
   return (
@@ -539,10 +615,10 @@ function ProgressSection({ profile }) {
 
       <div className="stats-grid" style={{ marginBottom: 24 }}>
         {[
-          { num: quizzes.length,                            label: 'Quizzes Taken',  sub: 'Total',        color: 'var(--teal)' },
-          { num: quizzes.length ? `${avgScore}%` : '—',    label: 'Average Score',  sub: 'All subjects', color: 'var(--gold)' },
-          { num: progress.length,                           label: 'Subjects Active',sub: 'Tracked',      color: 'var(--purple)' },
-          { num: `${streak}d`,                              label: 'Current Streak', sub: 'Day streak',   color: '#e07b39' },
+          { num: quizzes.length,                         label: 'Quizzes Taken',  sub: 'Total',        color: 'var(--teal)' },
+          { num: quizzes.length ? `${avgScore}%` : '—', label: 'Average Score',  sub: 'All subjects', color: 'var(--gold)' },
+          { num: progress.length,                        label: 'Subjects Active',sub: 'Tracked',      color: 'var(--purple)' },
+          { num: `${streak}d`,                           label: 'Current Streak', sub: 'Day streak',   color: '#e07b39' },
         ].map(s => (
           <div key={s.label} className="stat-card">
             <div className="stat-num" style={{ color: s.color }}>{s.num}</div>

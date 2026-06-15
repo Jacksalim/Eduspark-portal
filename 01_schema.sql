@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS public.tutor_applications (
   certifications    TEXT,
   cv_url            TEXT,
   certificates_url  TEXT,
-  references        TEXT,
+  referees        TEXT,
   motivation        TEXT NOT NULL,
   admin_notes       TEXT,
   reviewed_by       UUID REFERENCES auth.users(id),

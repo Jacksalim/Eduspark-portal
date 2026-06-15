@@ -29,7 +29,7 @@ export default function TutorApplicationPage() {
     subjects: [],
     years_experience: 0,
     certifications: '',
-    references: '',
+    referees: '',
     motivation: '',
     cv_url: '',
     certificates_url: '',
@@ -209,8 +209,8 @@ export default function TutorApplicationPage() {
         </Section>
 
         <Section title="References & motivation">
-          <Textarea label="Professional references" name="references"
-            value={form.references} onChange={handleChange}
+          <Textarea label="Professional referees" name="referees"
+            value={form.referees} onChange={handleChange}
             placeholder="Name, role, institution, contact info (one per line)" rows={3} />
           <Textarea label="Motivation statement * (min 100 characters)" name="motivation"
             value={form.motivation} onChange={handleChange}

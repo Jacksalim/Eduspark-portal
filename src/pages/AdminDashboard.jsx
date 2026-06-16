@@ -1,488 +1,536 @@
+// src/pages/dashboards/AdminDashboard.jsx
 import { useState, useEffect } from 'react'
-import { fetchAllLearners, uploadVideo, deleteVideo, fetchVideos, fetchVisits, fetchVisitStats } from '../lib/supabase'
-import { SUBJECTS, GRADES, Spinner, useToast } from '../components/ui'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 
-function fallbackLearners() {
-  return [
-    { id: '1', name: 'Amara Dlamini',  grade: '7',  email: 'amara@email.com',  role: 'learner', created_at: '2024-03-01' },
-    { id: '2', name: 'Sipho Ndlovu',   grade: '9',  email: 'sipho@email.com',  role: 'learner', created_at: '2024-03-05' },
-    { id: '3', name: 'Zoe Pietersen',  grade: '5',  email: 'zoe@email.com',    role: 'learner', created_at: '2024-03-10' },
+export default function AdminDashboard() {
+  const { profile } = useAuth()
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState('overview')
+
+  const tabs = [
+    { id: 'overview',      label: 'Overview' },
+    { id: 'applications',  label: 'Tutor applications' },
+    { id: 'parent-links',  label: 'Parent links' },
+    { id: 'users',         label: 'Users' },
+    { id: 'audit',         label: 'Audit log' },
   ]
+
+  return (
+    <DashboardShell role="admin" profile={profile}>
+      <nav style={{ display: 'flex', gap: 4, borderBottom: '1px solid #f3f4f6',
+        marginBottom: 28, overflowX: 'auto' }}>
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
+            padding: '8px 16px', fontSize: 14, fontWeight: 500, border: 'none',
+            background: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+            borderBottom: activeTab === t.id ? '2px solid #6366f1' : '2px solid transparent',
+            color: activeTab === t.id ? '#4338ca' : '#6b7280',
+          }}>
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      {activeTab === 'overview'     && <AdminOverview />}
+      {activeTab === 'applications' && <TutorApplicationsPanel />}
+      {activeTab === 'parent-links' && <ParentLinksPanel />}
+      {activeTab === 'users'        && <UsersPanel />}
+      {activeTab === 'audit'        && <AuditLogPanel />}
+    </DashboardShell>
+  )
 }
 
-// ── Mini Bar Chart (CSS-based) ─────────────────────────────────────────────────
-function MiniBarChart({ data, color = 'var(--teal)' }) {
-  const max = Math.max(...data.map(d => d.val), 1)
+// ─── Overview stats ───────────────────────────────────────────────────────────
+
+function AdminOverview() {
+  const [stats, setStats] = useState(null)
+
+  useEffect(() => {
+    async function load() {
+      const [students, tutors, parents, apps] = await Promise.all([
+        supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'student'),
+        supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'tutor'),
+        supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'parent'),
+        supabase.from('tutor_applications').select('id', { count: 'exact' }).eq('status', 'pending'),
+      ])
+      setStats({
+        students: students.count ?? 0,
+        tutors:   tutors.count   ?? 0,
+        parents:  parents.count  ?? 0,
+        pending:  apps.count     ?? 0,
+      })
+    }
+    load()
+  }, [])
+
+  const cards = [
+    { label: 'Students',          value: stats?.students, color: '#6366f1', bg: '#eef2ff' },
+    { label: 'Tutors',            value: stats?.tutors,   color: '#0891b2', bg: '#ecfeff' },
+    { label: 'Parents',           value: stats?.parents,  color: '#059669', bg: '#f0fdf4' },
+    { label: 'Pending apps',      value: stats?.pending,  color: '#d97706', bg: '#fffbeb' },
+  ]
+
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, height: 64, paddingTop: 4 }}>
-      {data.map((d, i) => (
-        <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-          <div style={{
-            width: '100%', borderRadius: '3px 3px 0 0', minHeight: d.val > 0 ? 6 : 2,
-            height: `${Math.max((d.val / max) * 50, d.val > 0 ? 6 : 2)}px`,
-            background: d.val > 0 ? color : 'var(--mist)', transition: 'height .4s ease'
-          }} />
-          <div style={{ fontSize: '.62rem', color: '#bbb', whiteSpace: 'nowrap' }}>{d.label}</div>
-        </div>
-      ))}
+    <div>
+      <h2 style={h2Style}>Platform overview</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16 }}>
+        {cards.map(c => (
+          <div key={c.label} style={{
+            background: c.bg, borderRadius: 12, padding: '20px 16px',
+          }}>
+            <p style={{ fontSize: 28, fontWeight: 700, color: c.color, margin: '0 0 4px' }}>
+              {stats ? c.value : '—'}
+            </p>
+            <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{c.label}</p>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
-// ── Upload Video Section ───────────────────────────────────────────────────────
-function UploadSection({ profile }) {
-  const [form, setForm] = useState({ title: '', subject: 'Mathematics', grade: '7', topic: '', url: '', description: '' })
-  const [loading, setLoading] = useState(false)
-  const [videos, setVideos] = useState([])
-  const [videosLoading, setVideosLoading] = useState(true)
-  const [filterSubject, setFilterSubject] = useState('All')
-  const { show, ToastEl } = useToast()
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+// ─── Tutor applications review panel ─────────────────────────────────────────
 
-  useEffect(() => { fetchVideos({}).then(setVideos).catch(() => {}).finally(() => setVideosLoading(false)) }, [])
+function TutorApplicationsPanel() {
+  const { user } = useAuth()
+  const [apps,    setApps]    = useState([])
+  const [loading, setLoading] = useState(true)
+  const [filter,  setFilter]  = useState('pending')
+  const [search,  setSearch]  = useState('')
+  const [selected, setSelected] = useState(null)
+  const [notes,   setNotes]   = useState('')
+  const [acting,  setActing]  = useState(false)
 
-  async function handleUpload(e) {
-    e.preventDefault()
-    if (!form.title || !form.url) { show('Title and URL are required', 'error'); return }
-    setLoading(true)
-    try {
-      const v = await uploadVideo({ ...form, uploadedBy: profile?.id })
-      setVideos(vs => [v, ...vs])
-      setForm({ title: '', subject: 'Mathematics', grade: '7', topic: '', url: '', description: '' })
-      show('Video uploaded successfully! ✅')
-    } catch (err) { show('Upload failed: ' + err.message, 'error') }
-    setLoading(false)
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      let query = supabase
+        .from('tutor_applications')
+        .select('*, profiles!tutor_applications_user_id_fkey(full_name, email, avatar_url)')
+        .order('created_at', { ascending: false })
+
+      if (filter !== 'all') query = query.eq('status', filter)
+
+      const { data } = await query
+      setApps(data ?? [])
+      setLoading(false)
+    }
+    load()
+  }, [filter])
+
+  const filtered = apps.filter(a =>
+    a.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+    a.email?.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const handleAction = async (action) => {
+    if (!selected) return
+    setActing(true)
+    const fn = action === 'approve' ? 'approve_tutor_application' : 'reject_tutor_application'
+    const { error } = await supabase.rpc(fn, {
+      application_id: selected.id,
+      admin_id: user.id,
+      notes: notes || null,
+    })
+    setActing(false)
+    if (error) { alert('Error: ' + error.message); return }
+    setSelected(null)
+    setNotes('')
+    // Reload
+    setFilter(f => f) // trigger re-fetch
   }
 
-  async function handleDelete(id) {
-    if (!confirm('Delete this video? This cannot be undone.')) return
-    try { await deleteVideo(id); setVideos(vs => vs.filter(v => v.id !== id)); show('Video deleted') }
-    catch (err) { show('Delete failed: ' + err.message, 'error') }
-  }
+  if (selected) {
+    return (
+      <div>
+        <button onClick={() => setSelected(null)} style={backBtnStyle}>
+          ← Back to applications
+        </button>
 
-  const filtered = filterSubject === 'All' ? videos : videos.filter(v => v.subject === filterSubject)
+        <h2 style={h2Style}>{selected.full_name}</h2>
+        <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 24 }}>{selected.email}</p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+          <InfoBlock label="Status">
+            <StatusBadge status={selected.status} />
+          </InfoBlock>
+          <InfoBlock label="Submitted">{new Date(selected.created_at).toLocaleDateString()}</InfoBlock>
+          <InfoBlock label="National ID">{selected.national_id}</InfoBlock>
+          <InfoBlock label="Phone">{selected.phone || '—'}</InfoBlock>
+          <InfoBlock label="Experience">{selected.years_experience} year(s)</InfoBlock>
+          <InfoBlock label="Subjects">{(selected.subjects || []).join(', ') || '—'}</InfoBlock>
+        </div>
+
+        <InfoBlock label="Qualifications">{selected.qualifications}</InfoBlock>
+        <InfoBlock label="Certifications">{selected.certifications || '—'}</InfoBlock>
+        <InfoBlock label="References">{selected.references || '—'}</InfoBlock>
+        <InfoBlock label="Motivation statement" style={{ marginTop: 12 }}>
+          {selected.motivation}
+        </InfoBlock>
+
+        {selected.cv_url && (
+          <a href={selected.cv_url} target="_blank" rel="noopener noreferrer"
+            style={{ display: 'inline-block', marginTop: 12, color: '#6366f1', fontSize: 14 }}>
+            View CV / Resume ↗
+          </a>
+        )}
+
+        {selected.status === 'pending' && (
+          <div style={{ marginTop: 28, borderTop: '1px solid #f3f4f6', paddingTop: 24 }}>
+            <label style={labelStyle}>Admin notes (optional, shown to applicant)</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)}
+              rows={3} placeholder="Add notes about your decision…"
+              style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', marginBottom: 16 }} />
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button disabled={acting} onClick={() => handleAction('approve')} style={{
+                ...btnStyle, background: '#059669',
+              }}>
+                {acting ? 'Processing…' : '✓ Approve'}
+              </button>
+              <button disabled={acting} onClick={() => handleAction('reject')} style={{
+                ...btnStyle, background: '#dc2626',
+              }}>
+                {acting ? 'Processing…' : '✗ Reject'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div>
-      {ToastEl}
-      <div className="section-header">
-        <h2>📤 Video Management</h2>
-        <p>Upload new lessons or manage existing video content.</p>
-      </div>
-
-      {/* Upload Form */}
-      <div className="card card-pad" style={{ marginBottom: 28 }}>
-        <h4 style={{ fontSize: '1rem', marginBottom: 20 }}>Upload New Video</h4>
-        <form onSubmit={handleUpload}>
-          <div className="drop-zone" style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>🎬</div>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>Paste a YouTube or Vimeo link below</div>
-            <div style={{ fontSize: '.82rem', color: '#aaa' }}>Supports YouTube, Vimeo, and direct embed URLs</div>
-          </div>
-          <div className="form-group">
-            <label>Video URL *</label>
-            <input className="form-control" value={form.url} onChange={e => set('url', e.target.value)} placeholder="https://www.youtube.com/watch?v=..." required />
-          </div>
-          <div className="form-group">
-            <label>Video Title *</label>
-            <input className="form-control" value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Introduction to Algebra" required />
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Subject</label>
-              <select className="form-control" value={form.subject} onChange={e => set('subject', e.target.value)}>
-                {Object.keys(SUBJECTS).map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Grade</label>
-              <select className="form-control" value={form.grade} onChange={e => set('grade', e.target.value)}>
-                {GRADES.map(g => <option key={g} value={g}>{g === 'R' ? 'Grade R' : `Grade ${g}`}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Topic / Chapter</label>
-              <input className="form-control" value={form.topic} onChange={e => set('topic', e.target.value)} placeholder="e.g. Fractions, Entrepreneurship…" />
-            </div>
-            <div className="form-group">
-              <label>Description (optional)</label>
-              <input className="form-control" value={form.description} onChange={e => set('description', e.target.value)} placeholder="Brief description" />
-            </div>
-          </div>
-          <button className="btn btn-teal" type="submit" disabled={loading}>
-            {loading ? '⏳ Uploading…' : '📤 Upload Video'}
-          </button>
-        </form>
-      </div>
-
-      {/* Video Library */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-        <h4 style={{ margin: 0 }}>📚 Video Library ({filtered.length}{filterSubject !== 'All' ? ` of ${videos.length}` : ''})</h4>
-        <select className="form-control" value={filterSubject} onChange={e => setFilterSubject(e.target.value)} style={{ width: 180 }}>
-          <option value="All">All Subjects</option>
-          {Object.keys(SUBJECTS).map(s => <option key={s}>{s}</option>)}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Search by name or email…"
+          style={{ ...inputStyle, flex: 1, minWidth: 200 }} />
+        <select value={filter} onChange={e => setFilter(e.target.value)} style={inputStyle}>
+          <option value="all">All</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
         </select>
       </div>
 
-      {videosLoading ? <Spinner /> : (
-        <div className="data-table-wrap">
-          <table className="data-table">
-            <thead><tr><th>Title</th><th>Subject</th><th>Grade</th><th>Topic</th><th>Added</th><th></th></tr></thead>
-            <tbody>
-              {filtered.length === 0 && (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: '#aaa', padding: '32px 16px' }}>
-                  {videos.length === 0 ? 'No videos yet — upload your first one above!' : `No videos for "${filterSubject}"`}
-                </td></tr>
-              )}
-              {filtered.map(v => (
-                <tr key={v.id}>
-                  <td><b>{v.title}</b></td>
-                  <td>{SUBJECTS[v.subject]?.icon} {v.subject}</td>
-                  <td>Grade {v.grade}</td>
-                  <td style={{ color: '#888' }}>{v.topic || '—'}</td>
-                  <td style={{ color: '#aaa', fontSize: '.8rem' }}>{new Date(v.created_at).toLocaleDateString()}</td>
-                  <td><button className="btn btn-danger btn-sm" onClick={() => handleDelete(v.id)}>Delete</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {loading ? (
+        <p style={{ color: '#9ca3af', fontSize: 14 }}>Loading…</p>
+      ) : filtered.length === 0 ? (
+        <p style={{ color: '#9ca3af', fontSize: 14 }}>No applications found.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {filtered.map(app => (
+            <div key={app.id} onClick={() => { setSelected(app); setNotes('') }}
+              style={{
+                padding: '14px 16px', border: '1px solid #f3f4f6', borderRadius: 10,
+                cursor: 'pointer', display: 'flex', alignItems: 'center',
+                justifyContent: 'space-between', gap: 12,
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
+              onMouseLeave={e => e.currentTarget.style.background = 'white'}
+            >
+              <div>
+                <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: '#111827' }}>
+                  {app.full_name}
+                </p>
+                <p style={{ margin: 0, fontSize: 12, color: '#9ca3af' }}>
+                  {app.email} · {(app.subjects || []).slice(0, 2).join(', ')}
+                  {(app.subjects || []).length > 2 ? ` +${app.subjects.length - 2}` : ''}
+                </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <StatusBadge status={app.status} />
+                <span style={{ color: '#9ca3af', fontSize: 12 }}>
+                  {new Date(app.created_at).toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
   )
 }
 
-// ── Learners Section ───────────────────────────────────────────────────────────
-function LearnersSection() {
-  const [learners, setLearners] = useState([])
+// ─── Parent links panel ───────────────────────────────────────────────────────
+
+function ParentLinksPanel() {
+  const { user } = useAuth()
+  const [links, setLinks]   = useState([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [gradeFilter, setGradeFilter] = useState('All')
 
   useEffect(() => {
-    fetchAllLearners()
-      .then(data => setLearners(data.length > 0 ? data : fallbackLearners()))
-      .catch(() => setLearners(fallbackLearners()))
-      .finally(() => setLoading(false))
+    supabase
+      .from('parent_student_links')
+      .select('*, parent:profiles!parent_student_links_parent_id_fkey(full_name, email), student:profiles!parent_student_links_student_id_fkey(full_name, email)')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { setLinks(data ?? []); setLoading(false) })
   }, [])
 
-  const filtered = learners.filter(l => {
-    const matchSearch = !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.email.toLowerCase().includes(search.toLowerCase())
-    const matchGrade = gradeFilter === 'All' || l.grade === gradeFilter
-    return matchSearch && matchGrade
-  })
-
-  const primary = learners.filter(l => l.grade && (l.grade === 'R' || parseInt(l.grade) <= 7)).length
-  const highSchool = learners.filter(l => l.grade && parseInt(l.grade) >= 8).length
-
-  if (loading) return <Spinner />
+  const removeLink = async (id) => {
+    if (!confirm('Remove this parent-student link?')) return
+    await supabase.from('parent_student_links').delete().eq('id', id)
+    setLinks(l => l.filter(x => x.id !== id))
+  }
 
   return (
     <div>
-      <div className="section-header">
-        <h2>👥 Learner Management</h2>
-        <p>View and manage all registered learners on the platform.</p>
-      </div>
-
-      <div className="stats-grid" style={{ marginBottom: 24 }}>
-        {[
-          { num: learners.length, label: 'Total Learners', sub: 'Registered', color: 'var(--teal)' },
-          { num: primary,         label: 'Primary School', sub: 'Grades R–7',  color: 'var(--gold)' },
-          { num: highSchool,      label: 'High School',    sub: 'Grades 8–12', color: 'var(--purple)' },
-          { num: filtered.length, label: 'Showing',        sub: 'Current filter', color: 'var(--rose)' },
-        ].map(s => (
-          <div key={s.label} className="stat-card">
-            <div className="stat-num" style={{ color: s.color }}>{s.num}</div>
-            <div className="stat-label">{s.label}</div>
-            <div className="stat-sub" style={{ color: s.color }}>{s.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <div className="search-wrap" style={{ flex: 1, minWidth: 220 }}>
-          <input className="form-control" placeholder="Search by name or email…" value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
-        <select className="form-control" value={gradeFilter} onChange={e => setGradeFilter(e.target.value)} style={{ width: 140 }}>
-          <option value="All">All Grades</option>
-          {GRADES.map(g => <option key={g} value={g}>{g === 'R' ? 'Grade R' : `Grade ${g}`}</option>)}
-        </select>
-      </div>
-
-      <div className="data-table-wrap">
-        <table className="data-table">
-          <thead><tr><th>Name</th><th>Grade</th><th>Email</th><th>Joined</th><th>Role</th></tr></thead>
+      <h2 style={h2Style}>Parent-student links</h2>
+      {loading ? <p style={{ color: '#9ca3af' }}>Loading…</p> : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+          <thead>
+            <tr>
+              {['Parent', 'Student', 'Status', 'Created', 'Action'].map(h => (
+                <th key={h} style={{ textAlign: 'left', padding: '10px 12px',
+                  background: '#f9fafb', fontSize: 12, fontWeight: 600, color: '#6b7280',
+                  borderBottom: '1px solid #f3f4f6' }}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
           <tbody>
-            {filtered.length === 0 && (
-              <tr><td colSpan={5} style={{ textAlign: 'center', color: '#aaa', padding: '32px' }}>No learners match your search.</td></tr>
-            )}
-            {filtered.map(l => (
+            {links.map(l => (
               <tr key={l.id}>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--teal-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.85rem', fontWeight: 700, color: 'var(--teal)', flexShrink: 0 }}>
-                      {l.name.charAt(0).toUpperCase()}
-                    </div>
-                    <b>{l.name}</b>
-                  </div>
+                <td style={tdStyle}>{l.parent?.full_name ?? '—'}</td>
+                <td style={tdStyle}>{l.student?.full_name ?? '—'}</td>
+                <td style={tdStyle}><StatusBadge status={l.status} /></td>
+                <td style={tdStyle}>{new Date(l.created_at).toLocaleDateString()}</td>
+                <td style={tdStyle}>
+                  <button onClick={() => removeLink(l.id)} style={{
+                    padding: '4px 10px', fontSize: 12, color: '#dc2626',
+                    background: '#fef2f2', border: 'none', borderRadius: 6, cursor: 'pointer',
+                  }}>
+                    Remove
+                  </button>
                 </td>
-                <td>{l.grade ? `Grade ${l.grade}` : '—'}</td>
-                <td style={{ color: 'var(--teal)', fontSize: '.85rem' }}>{l.email}</td>
-                <td style={{ color: '#aaa', fontSize: '.8rem' }}>{new Date(l.created_at).toLocaleDateString()}</td>
-                <td><span className="pill pill-green">{l.role}</span></td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      )}
     </div>
   )
 }
 
-// ── Visitors Section ───────────────────────────────────────────────────────────
-function VisitorsSection() {
-  const [visits, setVisits] = useState([])
-  const [stats, setStats] = useState({ today: 0, total: 0 })
+// ─── Users panel ──────────────────────────────────────────────────────────────
+
+function UsersPanel() {
+  const [users,   setUsers]   = useState([])
   const [loading, setLoading] = useState(true)
+  const [search,  setSearch]  = useState('')
 
   useEffect(() => {
-    Promise.all([fetchVisits(), fetchVisitStats()])
-      .then(([v, s]) => { setVisits(v); setStats(s) })
-      .catch(() => {
-        setVisits([
-          { id: 1, page: '/', visited_at: new Date().toISOString(), profiles: { name: 'Anonymous', role: 'visitor' } },
-          { id: 2, page: '/grade-7-maths', visited_at: new Date().toISOString(), profiles: { name: 'Amara D.', role: 'learner' } },
-        ])
-        setStats({ today: 12, total: 340 })
-      })
-      .finally(() => setLoading(false))
+    supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { setUsers(data ?? []); setLoading(false) })
   }, [])
 
-  if (loading) return <Spinner />
+  const filtered = users.filter(u =>
+    u.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+    u.email?.toLowerCase().includes(search.toLowerCase())
+  )
 
   return (
     <div>
-      <div className="section-header">
-        <h2>👁 Site Visitors</h2>
-        <p>Live tracking of all page visits and user activity.</p>
-      </div>
-      <div className="stats-grid" style={{ marginBottom: 24 }}>
-        <div className="stat-card">
-          <div className="stat-num" style={{ color: 'var(--teal)' }}>{stats.today}</div>
-          <div className="stat-label">Visits Today</div>
-          <div className="stat-sub" style={{ color: 'var(--teal)' }}>↑ Live</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-num" style={{ color: 'var(--purple)' }}>{stats.total}</div>
-          <div className="stat-label">Total Visits</div>
-          <div className="stat-sub" style={{ color: 'var(--purple)' }}>All time</div>
-        </div>
-      </div>
-      <div className="data-table-wrap">
-        <table className="data-table">
-          <thead><tr><th>User</th><th>Page</th><th>Role</th><th>When</th></tr></thead>
+      <h2 style={h2Style}>Users</h2>
+      <input value={search} onChange={e => setSearch(e.target.value)}
+        placeholder="Search users…" style={{ ...inputStyle, marginBottom: 16 }} />
+      {loading ? <p style={{ color: '#9ca3af' }}>Loading…</p> : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+          <thead>
+            <tr>
+              {['Name', 'Email', 'Role', 'Joined'].map(h => (
+                <th key={h} style={{ textAlign: 'left', padding: '10px 12px',
+                  background: '#f9fafb', fontSize: 12, fontWeight: 600,
+                  color: '#6b7280', borderBottom: '1px solid #f3f4f6' }}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
           <tbody>
-            {visits.length === 0 && (
-              <tr><td colSpan={4} style={{ textAlign: 'center', color: '#aaa', padding: '32px' }}>No visits logged yet</td></tr>
-            )}
-            {visits.map(v => (
-              <tr key={v.id}>
-                <td style={{ fontWeight: 600 }}>{v.profiles?.name || 'Anonymous'}</td>
-                <td style={{ color: '#666', fontSize: '.87rem' }}>{v.page || '/'}</td>
-                <td><span className={`pill ${v.profiles?.role === 'learner' ? 'pill-green' : v.profiles?.role === 'admin' ? 'pill-purple' : 'pill-blue'}`}>{v.profiles?.role || 'visitor'}</span></td>
-                <td style={{ color: '#aaa', fontSize: '.8rem' }}>{new Date(v.visited_at).toLocaleString()}</td>
+            {filtered.map(u => (
+              <tr key={u.id}>
+                <td style={tdStyle}>{u.full_name || '—'}</td>
+                <td style={tdStyle}>{u.email}</td>
+                <td style={tdStyle}><RoleBadge role={u.role} /></td>
+                <td style={tdStyle}>{new Date(u.created_at).toLocaleDateString()}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      )}
     </div>
   )
 }
 
-// ── Main Admin Dashboard ───────────────────────────────────────────────────────
-export default function AdminDashboard({ profile }) {
-  const [section, setSection]       = useState('overview')
-  const [learners, setLearners]     = useState([])
-  const [videos, setVideos]         = useState([])
-  const [visitStats, setVisitStats] = useState({ today: 0, total: 0 })
-  const [dataLoading, setDataLoading] = useState(true)
-  const { show, ToastEl } = useToast()
+// ─── Audit log panel ──────────────────────────────────────────────────────────
+
+function AuditLogPanel() {
+  const [logs,    setLogs]    = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([fetchAllLearners(), fetchVideos({}), fetchVisitStats()])
-      .then(([l, v, s]) => { setLearners(l); setVideos(v); setVisitStats(s) })
-      .catch(() => { setLearners(fallbackLearners()) })
-      .finally(() => setDataLoading(false))
+    supabase
+      .from('audit_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100)
+      .then(({ data }) => { setLogs(data ?? []); setLoading(false) })
   }, [])
 
-  const sideItems = [
-    { id: 'overview',  icon: '📊', label: 'Overview' },
-    { id: 'videos',    icon: '📤', label: 'Videos' },
-    { id: 'learners',  icon: '👥', label: 'Learners' },
-    { id: 'visitors',  icon: '👁',  label: 'Visitors' },
-  ]
+  return (
+    <div>
+      <h2 style={h2Style}>Audit log (last 100 events)</h2>
+      {loading ? <p style={{ color: '#9ca3af' }}>Loading…</p> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {logs.map(l => (
+            <div key={l.id} style={{
+              padding: '10px 14px', background: '#f9fafb', borderRadius: 8,
+              fontSize: 13, display: 'flex', gap: 12, alignItems: 'flex-start',
+            }}>
+              <span style={{
+                fontFamily: 'monospace', fontSize: 12, color: '#9ca3af', whiteSpace: 'nowrap'
+              }}>
+                {new Date(l.created_at).toLocaleString()}
+              </span>
+              <span style={{ fontWeight: 600, color: '#374151' }}>{l.action}</span>
+              {l.target_type && (
+                <span style={{ color: '#6b7280' }}>{l.target_type}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
-  // Grade distribution for bar chart
-  const gradeData = ['7','8','9','10','11','12'].map(g => ({
-    label: `G${g}`,
-    val: learners.filter(l => l.grade === g).length
-  }))
+// ─── Shared utilities ─────────────────────────────────────────────────────────
 
-  // Subject distribution from videos
-  const subjectData = Object.keys(SUBJECTS).slice(0, 6).map(s => ({
-    label: s.slice(0, 4),
-    val: videos.filter(v => v.subject === s).length
-  }))
-
-  const primary = learners.filter(l => l.grade && (l.grade === 'R' || parseInt(l.grade) <= 7)).length
-  const highSchool = learners.filter(l => l.grade && parseInt(l.grade) >= 8).length
+function StatusBadge({ status }) {
+  const cfg = {
+    pending:  { color: '#92400e', bg: '#fef3c7' },
+    approved: { color: '#065f46', bg: '#d1fae5' },
+    rejected: { color: '#991b1b', bg: '#fee2e2' },
+  }[status] ?? { color: '#374151', bg: '#f3f4f6' }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-      {ToastEl}
+    <span style={{
+      padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+      textTransform: 'capitalize', color: cfg.color, background: cfg.bg,
+    }}>
+      {status}
+    </span>
+  )
+}
 
-      <div className="portal-layout">
-        {/* Sidebar */}
-        <div className="sidebar">
-          <div className="sidebar-section">Navigation</div>
-          {sideItems.map(s => (
-            <button key={s.id} className={`sidebar-btn ${section === s.id ? 'active' : ''}`} onClick={() => setSection(s.id)}>
-              {s.icon} {s.label}
-            </button>
-          ))}
-          <div style={{ flex: 1 }} />
-          <div style={{ padding: '12px', background: 'rgba(255,255,255,.04)', borderRadius: 10, margin: '8px 4px 0' }}>
-            <div style={{ fontSize: '.68rem', color: 'rgba(255,255,255,.3)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 6 }}>Admin</div>
-            <div style={{ color: '#fff', fontWeight: 600, fontSize: '.875rem' }}>{profile?.name?.split(' ')[0]}</div>
-            <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.75rem', marginTop: 2 }}>Tutor / Admin</div>
+function RoleBadge({ role }) {
+  const colors = {
+    admin: { color: '#5b21b6', bg: '#ede9fe' },
+    tutor: { color: '#0369a1', bg: '#e0f2fe' },
+    parent: { color: '#065f46', bg: '#d1fae5' },
+    student: { color: '#374151', bg: '#f3f4f6' },
+  }[role] ?? { color: '#374151', bg: '#f3f4f6' }
+
+  return (
+    <span style={{
+      padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+      textTransform: 'capitalize', color: colors.color, background: colors.bg,
+    }}>
+      {role}
+    </span>
+  )
+}
+
+function InfoBlock({ label, children }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <p style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase',
+        letterSpacing: '0.05em', margin: '0 0 4px' }}>
+        {label}
+      </p>
+      <p style={{ margin: 0, fontSize: 14, color: '#111827', whiteSpace: 'pre-wrap' }}>{children}</p>
+    </div>
+  )
+}
+
+const h2Style     = { fontSize: 18, fontWeight: 700, color: '#111827', margin: '0 0 20px' }
+const tdStyle     = { padding: '10px 12px', borderBottom: '1px solid #f9fafb', color: '#374151', verticalAlign: 'middle' }
+const labelStyle  = { display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 5 }
+const inputStyle  = { width: '100%', padding: '9px 12px', borderRadius: 8, fontSize: 14, border: '1.5px solid #e5e7eb', outline: 'none', boxSizing: 'border-box' }
+const btnStyle    = { padding: '10px 20px', background: '#6366f1', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }
+const backBtnStyle = { background: 'none', border: 'none', color: '#6366f1', fontSize: 14, cursor: 'pointer', padding: 0, marginBottom: 20, fontWeight: 500 }
+
+// ─── Dashboard shell ──────────────────────────────────────────────────────────
+
+function DashboardShell({ role, profile, children }) {
+  const navigate = useNavigate()
+  const { signOut: logout } = useAuth()
+
+  const handleSignOut = async () => {
+    const { signOut } = await import('../../lib/supabase')
+    await signOut()
+    navigate('/login')
+  }
+
+  const ROLE_COLORS = {
+    admin:   '#7c3aed',
+    tutor:   '#0891b2',
+    parent:  '#059669',
+    student: '#6366f1',
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f9fafb' }}>
+      <header style={{
+        background: 'white', borderBottom: '1px solid #f3f4f6',
+        padding: '0 24px', display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', height: 60,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 32, height: 32, background: '#6366f1', borderRadius: 8,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </div>
+          <span style={{ fontWeight: 700, color: '#111827' }}>EduSpark</span>
+          <span style={{
+            padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+            textTransform: 'capitalize', color: 'white',
+            background: ROLE_COLORS[role] ?? '#6366f1',
+          }}>
+            {role}
+          </span>
         </div>
 
-        {/* Main Content */}
-        <div className="portal-main">
-
-          {/* ── OVERVIEW ── */}
-          {section === 'overview' && (
-            <div>
-              {/* Hero */}
-              <div className="dash-hero" style={{ background: 'linear-gradient(135deg, #1a0a4a 0%, #2d1b69 50%, #4a2d99 100%)' }}>
-                <div style={{ fontSize: '.75rem', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,.5)', marginBottom: 8 }}>
-                  🖥️ Tutor Dashboard
-                </div>
-                <h2 style={{ fontSize: 'clamp(1.4rem,3vw,1.9rem)', fontFamily: "'Playfair Display',serif", marginBottom: 4 }}>
-                  Welcome back, {profile?.name?.split(' ')[0] || 'Tutor'}! 👋
-                </h2>
-                <p style={{ opacity: .65, fontSize: '.88rem', marginTop: 4 }}>
-                  {new Date().toLocaleDateString('en-ZA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                </p>
-              </div>
-
-              {/* Stats */}
-              {dataLoading ? (
-                <div className="stats-grid-6">
-                  {[...Array(6)].map((_, i) => <div key={i} className="skeleton" style={{ height: 100 }} />)}
-                </div>
-              ) : (
-                <div className="stats-grid-6">
-                  {[
-                    { icon: '👥', label: 'Total Learners',  val: learners.length,      color: 'var(--teal)' },
-                    { icon: '📺', label: 'Videos Uploaded', val: videos.length,        color: '#2d7a2d' },
-                    { icon: '📚', label: 'Subjects',        val: 10,                   color: 'var(--gold)' },
-                    { icon: '🎓', label: 'Grade Levels',    val: 13,                   color: 'var(--purple)' },
-                    { icon: '👁',  label: 'Visits Today',   val: visitStats.today,     color: 'var(--rose)' },
-                    { icon: '📊', label: 'Total Visits',    val: visitStats.total,     color: '#1a5fbf' },
-                  ].map(s => (
-                    <div key={s.label} className="stat-card-v2">
-                      <div className="stat-accent" style={{ background: s.color }} />
-                      <div className="stat-icon">{s.icon}</div>
-                      <div className="stat-val" style={{ color: s.color }}>{s.val}</div>
-                      <div className="stat-lbl">{s.label}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Charts + Quick Actions */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20, marginBottom: 24 }}>
-                {/* Learner grade distribution */}
-                <div className="card card-pad">
-                  <h4 style={{ fontSize: '.9rem', marginBottom: 4 }}>👥 Learners by Grade</h4>
-                  <p style={{ fontSize: '.75rem', color: '#aaa', marginBottom: 16 }}>Grades 7–12</p>
-                  <MiniBarChart data={gradeData} color="var(--teal)" />
-                </div>
-
-                {/* Videos by subject */}
-                <div className="card card-pad">
-                  <h4 style={{ fontSize: '.9rem', marginBottom: 4 }}>📺 Videos by Subject</h4>
-                  <p style={{ fontSize: '.75rem', color: '#aaa', marginBottom: 16 }}>Top 6 subjects</p>
-                  <MiniBarChart data={subjectData} color="var(--purple)" />
-                </div>
-
-                {/* School level breakdown */}
-                <div className="card card-pad">
-                  <h4 style={{ fontSize: '.9rem', marginBottom: 16 }}>🏫 School Level Breakdown</h4>
-                  {[
-                    { label: 'Primary School (R–7)', val: primary, color: 'var(--gold)', total: learners.length },
-                    { label: 'High School (8–12)', val: highSchool, color: 'var(--teal)', total: learners.length },
-                  ].map(b => (
-                    <div key={b.label} style={{ marginBottom: 16 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <span style={{ fontSize: '.82rem', fontWeight: 600 }}>{b.label}</span>
-                        <span style={{ fontSize: '.82rem', fontWeight: 700, color: b.color }}>{b.val}</span>
-                      </div>
-                      <div style={{ height: 8, background: 'var(--mist)', borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${b.total > 0 ? (b.val / b.total) * 100 : 0}%`, background: b.color, borderRadius: 4, transition: 'width .4s ease' }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="card card-pad">
-                <h4 style={{ marginBottom: 16, fontSize: '.95rem' }}>⚡ Quick Actions</h4>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  {[
-                    { label: '📤 Upload Video',   section: 'videos',   cls: 'btn-teal' },
-                    { label: '👥 View Learners',  section: 'learners', cls: 'btn-ghost' },
-                    { label: '👁 Site Visitors',  section: 'visitors', cls: 'btn-ghost' },
-                  ].map(a => (
-                    <button key={a.section} className={`btn ${a.cls} btn-sm`} onClick={() => setSection(a.section)}>
-                      {a.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* System Status */}
-              <div className="card card-pad" style={{ marginTop: 20 }}>
-                <h4 style={{ marginBottom: 14, fontSize: '.95rem' }}>🟢 System Status</h4>
-                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  {[
-                    { label: 'Supabase DB',    ok: true },
-                    { label: 'Auth Service',   ok: true },
-                    { label: 'AI Quiz Engine', ok: true },
-                    { label: 'Video Embeds',   ok: true },
-                  ].map(s => (
-                    <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 7, background: s.ok ? '#e6f5e6' : 'var(--rose-light)', borderRadius: 8, padding: '7px 13px' }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.ok ? '#256625' : 'var(--rose)', flexShrink: 0 }} />
-                      <span style={{ fontSize: '.8rem', fontWeight: 600, color: s.ok ? '#256625' : 'var(--rose)' }}>{s.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {section === 'videos'   && <UploadSection profile={profile} />}
-          {section === 'learners' && <LearnersSection />}
-          {section === 'visitors' && <VisitorsSection />}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 14, color: '#6b7280' }}>
+            {profile?.full_name || profile?.email}
+          </span>
+          <button onClick={handleSignOut} style={{
+            padding: '6px 14px', background: '#f3f4f6', color: '#374151',
+            border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer',
+          }}>
+            Sign out
+          </button>
         </div>
-      </div>
+      </header>
+
+      <main style={{ padding: '32px 24px', maxWidth: 1100, margin: '0 auto' }}>
+        {children}
+      </main>
     </div>
   )
 }

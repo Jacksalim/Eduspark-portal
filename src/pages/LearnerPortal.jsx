@@ -90,11 +90,14 @@ function VideoModal({ video, userId, onClose, onWatched }) {
 
 // ── Quiz Section ──────────────────────────────────────────────────────────────
 
-// Track last 15 question texts in session memory to send to API for deduplication
-const quizSessionHistory = { questions: [] }
-function addToHistory(questions) {
+// Track last 15 question texts per subject to prevent repetition within the same subject
+const quizSessionHistory = {}
+function getHistory(subject) {
+  return quizSessionHistory[subject] || []
+}
+function addToHistory(subject, questions) {
   const texts = questions.map(q => q.question)
-  quizSessionHistory.questions = [...quizSessionHistory.questions, ...texts].slice(-15)
+  quizSessionHistory[subject] = [...getHistory(subject), ...texts].slice(-15)
 }
 
 async function fetchQuiz(grade, subject, difficulty = 'mixed') {
@@ -105,7 +108,7 @@ async function fetchQuiz(grade, subject, difficulty = 'mixed') {
       grade,
       subject,
       difficulty,
-      recentQuestions: quizSessionHistory.questions,
+      recentQuestions: getHistory(subject), // only send history for THIS subject
     })
   })
   if (!res.ok) {
@@ -114,7 +117,7 @@ async function fetchQuiz(grade, subject, difficulty = 'mixed') {
   }
   const data = await res.json()
   if (!data.questions?.length) throw new Error('No questions returned from AI')
-  addToHistory(data.questions)
+  addToHistory(subject, data.questions)
   return {
     questions:  data.questions,
     provider:   data.provider || 'ai',
@@ -124,43 +127,38 @@ async function fetchQuiz(grade, subject, difficulty = 'mixed') {
 }
 
 function fallbackQuestions(subject, grade) {
-  return [
-    {
-      question: `What is a key habit for Grade ${grade} ${subject} success?`,
-      type: 'multiple_choice',
-      options: ['Study daily', 'Skip practice', 'Avoid revision', 'Guess answers'],
-      correctAnswer: 'Study daily',
-      explanation: 'Offline fallback — add GEMINI_API_KEY or ANTHROPIC_API_KEY to Vercel environment variables.'
-    },
-    {
-      question: 'What is 7 × 8?',
-      type: 'multiple_choice',
-      options: ['54', '56', '48', '64'],
-      correctAnswer: '56',
-      explanation: '7 × 8 = 56'
-    },
-    {
-      question: 'Is the Earth the third planet from the Sun?',
-      type: 'true_false',
-      options: ['True', 'False'],
-      correctAnswer: 'True',
-      explanation: 'Earth is indeed the third planet from the Sun, after Mercury and Venus.'
-    },
-    {
-      question: 'Simplify: 4/8',
-      type: 'multiple_choice',
-      options: ['1/3', '1/2', '2/3', '3/4'],
-      correctAnswer: '1/2',
-      explanation: '4 ÷ 4 = 1 and 8 ÷ 4 = 2, so 4/8 = 1/2'
-    },
-    {
-      question: 'Solve: x + 5 = 12',
-      type: 'multiple_choice',
-      options: ['6', '7', '8', '17'],
-      correctAnswer: '7',
-      explanation: 'x = 12 − 5 = 7'
-    },
+  // Subject-specific fallbacks so offline mode doesn't show Maths for every subject
+  const fallbacks = {
+    Mathematics: [
+      { question: 'What is 7 × 8?', options: ['54', '56', '48', '64'], correctAnswer: '56', explanation: '7 × 8 = 56' },
+      { question: 'Simplify: 4/8', options: ['1/3', '1/2', '2/3', '3/4'], correctAnswer: '1/2', explanation: '4 ÷ 4 = 1 and 8 ÷ 4 = 2, so 4/8 = 1/2' },
+    ],
+    English: [
+      { question: 'Which word is a noun?', options: ['Run', 'Happy', 'Book', 'Quickly'], correctAnswer: 'Book', explanation: 'A noun names a person, place, or thing. "Book" is a thing.' },
+      { question: 'What is the past tense of "go"?', options: ['Goed', 'Gone', 'Went', 'Going'], correctAnswer: 'Went', explanation: '"Go" is an irregular verb whose past tense is "went".' },
+    ],
+    Science: [
+      { question: 'Is the Earth the third planet from the Sun?', options: ['True', 'False'], correctAnswer: 'True', explanation: 'Earth is the third planet from the Sun, after Mercury and Venus.' },
+      { question: 'What gas do plants absorb during photosynthesis?', options: ['Oxygen', 'Nitrogen', 'Carbon Dioxide', 'Hydrogen'], correctAnswer: 'Carbon Dioxide', explanation: 'Plants absorb CO₂ and use sunlight to produce food and oxygen.' },
+    ],
+  }
+  const subjectFallback = fallbacks[subject] || [
+    { question: `What is a key habit for Grade ${grade} ${subject} success?`, options: ['Study daily', 'Skip practice', 'Avoid revision', 'Guess answers'], correctAnswer: 'Study daily', explanation: 'Offline fallback — add GEMINI_API_KEY or ANTHROPIC_API_KEY to Vercel environment variables.' },
   ]
+  // Pad to 5 questions
+  const base = [
+    ...subjectFallback,
+    { question: `Which skill is most important in ${subject}?`, options: ['Practice', 'Luck', 'Copying', 'Skipping'], correctAnswer: 'Practice', explanation: `Regular practice is the foundation of ${subject} mastery.` },
+    { question: `True or False: Regular revision helps you remember ${subject} content.`, options: ['True', 'False'], correctAnswer: 'True', explanation: 'Spaced repetition significantly improves long-term memory retention.' },
+    { question: `What should you do when you don't understand a ${subject} concept?`, options: ['Ask for help', 'Give up', 'Ignore it', 'Copy answers'], correctAnswer: 'Ask for help', explanation: 'Asking teachers, peers, or using resources helps close knowledge gaps.' },
+  ]
+  return base.slice(0, 5).map(q => ({
+    ...q,
+    type: q.options.length === 2 && q.options.includes('True') ? 'true_false' : 'multiple_choice',
+    subject,
+    topic: subject,
+    difficulty: 'easy',
+  }))
 }
 
 const DIFFICULTY_LABELS = { easy: '🟢 Easy', medium: '🟡 Medium', hard: '🔴 Hard', mixed: '🎲 Mixed' }
@@ -225,13 +223,12 @@ function QuizSection({ profile }) {
   }
 
   async function next() {
-    const lastCorrect = selected === quiz[qIdx].correctAnswer ? 1 : 0
-    const computed = score + lastCorrect
     if (qIdx + 1 >= quiz.length) {
-      setFinalScore(computed); setDone(true)
+      // score state already reflects the last answer from answer()
+      setFinalScore(score); setDone(true)
       if (profile?.id) {
         try {
-          await saveQuizResult({ userId: profile.id, subject, grade, score: computed, total: quiz.length })
+          await saveQuizResult({ userId: profile.id, subject, grade, score, total: quiz.length })
           setHistory(await fetchQuizResults(profile.id))
           show('Quiz result saved! ✅')
         } catch (e) { console.warn('Could not save quiz result:', e.message) }

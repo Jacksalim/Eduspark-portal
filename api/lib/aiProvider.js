@@ -9,6 +9,9 @@ export const MAX_RETRIES = 2
 export const SUPPORTED_SUBJECTS = [
   'Mathematics', 'English', 'Science', 'Social Studies',
   'ICT', 'Life Skills', 'History', 'Geography',
+  // Subjects used in the frontend SUBJECTS map:
+  'Business Studies', 'Natural Sciences', 'Life Orientation',
+  'Technology', 'Accounting', 'Physical Sciences',
 ]
 export const SUPPORTED_GRADES = Array.from({ length: 12 }, (_, i) => i + 1)
 
@@ -63,6 +66,42 @@ export const TOPIC_BANKS = {
     'Water Bodies', 'Vegetation Zones', 'Population Distribution',
     'Natural Disasters', 'Environmental Issues', 'Trade Routes',
     'Urban and Rural Settlement', 'East African Region',
+  ],
+  'Business Studies': [
+    'Business Ownership', 'Marketing and Advertising', 'Supply and Demand',
+    'Entrepreneurship', 'Business Finance', 'Human Resources',
+    'Customer Service', 'Business Communication', 'Ethics in Business',
+    'Stock and Inventory', 'Profit and Loss', 'Business Planning',
+  ],
+  'Natural Sciences': [
+    'Matter and Materials', 'Energy and Change', 'Life and Living',
+    'Earth and Beyond', 'Chemical Reactions', 'Ecosystems',
+    'Human Biology', 'Plant Biology', 'Physics Concepts',
+    'Scientific Method', 'Environmental Science', 'Genetics Basics',
+  ],
+  'Life Orientation': [
+    'Personal Development', 'Health and Wellbeing', 'Social Responsibility',
+    'Physical Education', 'Career Guidance', 'Citizenship',
+    'Human Rights', 'Emotional Intelligence', 'Conflict Resolution',
+    'Study Skills', 'Financial Literacy', 'Community Engagement',
+  ],
+  Technology: [
+    'Computer Hardware', 'Software Applications', 'Internet and Networks',
+    'Programming Basics', 'Digital Safety', 'Problem Solving with Technology',
+    'Design Thinking', 'Data and Information', 'Robotics Concepts',
+    'Multimedia', 'Spreadsheets and Databases', 'Emerging Technologies',
+  ],
+  Accounting: [
+    'Bookkeeping Basics', 'Income and Expenditure', 'Assets and Liabilities',
+    'Financial Statements', 'Cash Flow', 'Bank Reconciliation',
+    'Debtors and Creditors', 'VAT and Tax Concepts', 'Trial Balance',
+    'Budgeting', 'Depreciation', 'Ledger Accounts',
+  ],
+  'Physical Sciences': [
+    'Mechanics and Motion', 'Electricity and Circuits', 'Waves and Sound',
+    'Chemical Bonding', 'Acids and Bases', 'Periodic Table',
+    'Energy and Power', 'Thermodynamics', 'Optics and Light',
+    'Nuclear Physics Basics', 'Organic Chemistry', 'Forces and Newton\'s Laws',
   ],
 }
 
@@ -135,13 +174,15 @@ LEARNING OBJECTIVES:
 - Each question must cover a DIFFERENT aspect or topic
 - Use varied sentence structures and question stems
 ${avoidSection}
-STRICT RULES:
-- No two questions may test the same fact or concept
-- No duplicate answer options within any question
-- correctAnswer must be the EXACT string of one of the options
-- For true/false: options must be exactly ["True", "False"]
-- Explanations must be educational, 1-2 sentences
-- Wording must be age-appropriate for Grade ${grade}
+STRICT RULES — READ CAREFULLY:
+1. ALL 5 questions MUST be about ${subject} ONLY. Do NOT include questions from any other subject.
+2. No two questions may test the same fact or concept
+3. No duplicate answer options within any question
+4. correctAnswer must be the EXACT string of one of the options
+5. For true/false: options must be exactly ["True", "False"]
+6. Explanations must be educational, 1-2 sentences
+7. Wording must be age-appropriate for Grade ${grade}
+8. Every question object must include "subject": "${subject}"
 
 Return ONLY valid JSON — no markdown, no code fences, no preamble:
 {
@@ -149,6 +190,7 @@ Return ONLY valid JSON — no markdown, no code fences, no preamble:
     {
       "question": "question text",
       "type": "multiple_choice",
+      "subject": "${subject}",
       "topic": "specific topic covered",
       "difficulty": "easy|medium|hard",
       "options": ["Option A", "Option B", "Option C", "Option D"],
@@ -162,9 +204,13 @@ Return ONLY valid JSON — no markdown, no code fences, no preamble:
 // ── Validate input ────────────────────────────────────────────────────────────
 export function validateInput(grade, subject) {
   const errors = []
+  // Accept 'R' (Reception/Grade R) or numeric 1–12
+  const isGradeR = String(grade).toUpperCase() === 'R'
   const g = Number(grade)
   if (!grade && grade !== 0) errors.push('Grade is required')
-  else if (!Number.isInteger(g) || g < 1 || g > 12) errors.push(`Grade must be 1–12, got "${grade}"`)
+  else if (!isGradeR && (!Number.isInteger(g) || g < 1 || g > 12)) {
+    errors.push(`Grade must be R or 1–12, got "${grade}"`)
+  }
   if (!subject) errors.push('Subject is required')
   else if (!SUPPORTED_SUBJECTS.includes(subject)) {
     errors.push(`Subject must be one of: ${SUPPORTED_SUBJECTS.join(', ')}. Got "${subject}"`)
@@ -192,7 +238,7 @@ export function extractJSON(text) {
 }
 
 // ── Quiz validator ────────────────────────────────────────────────────────────
-export function validateQuiz(parsed) {
+export function validateQuiz(parsed, expectedSubject = null) {
   if (!parsed || typeof parsed !== 'object') throw new Error('Response is not a JSON object')
   if (!Array.isArray(parsed.questions))       throw new Error('Missing "questions" array')
   if (parsed.questions.length === 0)          throw new Error('Questions array is empty')
@@ -212,6 +258,13 @@ export function validateQuiz(parsed) {
     const qKey = q.question.trim().toLowerCase().slice(0, 60)
     if (seenQuestions.has(qKey)) throw new Error(`Q${n}: duplicate question detected`)
     seenQuestions.add(qKey)
+    // Subject tag enforcement — stamp it if missing, reject if wrong
+    if (expectedSubject) {
+      if (q.subject && q.subject !== expectedSubject) {
+        throw new Error(`Q${n}: subject mismatch — expected "${expectedSubject}", got "${q.subject}"`)
+      }
+      q.subject = expectedSubject // stamp it regardless
+    }
   })
   return true
 }

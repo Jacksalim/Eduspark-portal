@@ -53,7 +53,8 @@ export default async function handler(req, res) {
   if (!Array.isArray(topicHints)) topicHints = []
   topicHints = topicHints.filter(t => typeof t === 'string' && t.trim()).slice(0, 3)
 
-  grade = Number(grade)
+  // Keep 'R' as string; coerce numeric grades to Number
+  grade = String(grade).toUpperCase() === 'R' ? 'R' : Number(grade)
 
   const keys = checkProviderKeys()
   if (!keys.any) {

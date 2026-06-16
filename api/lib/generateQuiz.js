@@ -102,7 +102,7 @@ async function callGemini(grade, subject, params, attempt) {
   if (!text) throw new Error('Gemini returned empty content')
 
   const parsed = JSON.parse(extractJSON(text))
-  validateQuiz(parsed)
+  validateQuiz(parsed, subject)
 
   const finalQuestions = shuffleOptions(parsed.questions)
   log.ok('Gemini success', { grade, subject, topics: params.topics, questions: finalQuestions.length })
@@ -155,7 +155,7 @@ async function callAnthropic(grade, subject, params, attempt) {
   if (!text) throw new Error('Anthropic returned empty content')
 
   const parsed = JSON.parse(extractJSON(text))
-  validateQuiz(parsed)
+  validateQuiz(parsed, subject)
 
   const finalQuestions = shuffleOptions(parsed.questions)
   log.ok('Anthropic success', { grade, subject, topics: params.topics, questions: finalQuestions.length })

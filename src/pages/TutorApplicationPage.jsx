@@ -252,7 +252,7 @@ function StatusCard({ app, onBack }) {
           {cfg.label}
         </h2>
         <p style={{ fontSize: 14, color: cfg.color, opacity: 0.8 }}>
-          {app.status === 'pending' && 'Your application is being reviewed. You'll receive a notification once a decision is made.'}
+          {app.status === 'pending' && "Your application is being reviewed. You'll receive a notification once a decision is made."}
           {app.status === 'approved' && 'Congratulations! You now have access to the Tutor Dashboard.'}
           {app.status === 'rejected' && 'Unfortunately your application was not approved at this time.'}
         </p>

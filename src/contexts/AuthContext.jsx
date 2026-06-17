@@ -1,28 +1,47 @@
 // src/contexts/AuthContext.jsx
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { supabase, getProfile } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
+// Normalise role: existing DB uses 'learner'; new system uses 'student'
+// Both are treated as student-level access
+function normaliseRole(role) {
+  if (role === 'learner') return 'student'
+  return role ?? 'student'
+}
+
+async function fetchProfile(userId) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single()
+  if (error) throw error
+  return data
+}
+
 export function AuthProvider({ children }) {
-  const [session, setSession]   = useState(null)
-  const [profile, setProfile]   = useState(null)
-  const [loading, setLoading]   = useState(true)
+  const [session,  setSession]  = useState(null)
+  const [profile,  setProfile]  = useState(null)
+  const [loading,  setLoading]  = useState(true)
 
   const loadProfile = useCallback(async (userId) => {
     if (!userId) { setProfile(null); return }
-    const { data } = await getProfile(userId)
-    setProfile(data)
+    try {
+      const data = await fetchProfile(userId)
+      setProfile(data)
+    } catch {
+      setProfile(null)
+    }
   }, [])
 
   useEffect(() => {
-    // Initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       loadProfile(session?.user?.id).finally(() => setLoading(false))
     })
 
-    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session)
@@ -30,25 +49,30 @@ export function AuthProvider({ children }) {
         setLoading(false)
       }
     )
-
     return () => subscription.unsubscribe()
   }, [loadProfile])
 
-  const refreshProfile = () => loadProfile(session?.user?.id)
+  const refreshProfile = async () => {
+    const { data } = await getProfile(session?.user?.id)
+    setProfile(data)
+    return data
+  }
+
+  // role is normalised so 'learner' becomes 'student'
+  const role = normaliseRole(profile?.role)
 
   const value = {
     session,
-    user: session?.user ?? null,
+    user:            session?.user ?? null,
     profile,
     loading,
     refreshProfile,
     isAuthenticated: !!session,
-    // Role helpers — read from DB profile (not JWT) to prevent spoofing
-    role: profile?.role ?? null,
-    isStudent: profile?.role === 'student',
-    isParent:  profile?.role === 'parent',
-    isTutor:   profile?.role === 'tutor',
-    isAdmin:   profile?.role === 'admin',
+    role,
+    isStudent: role === 'student',
+    isParent:  role === 'parent',
+    isTutor:   role === 'tutor',
+    isAdmin:   role === 'admin',
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -2,10 +2,12 @@
 import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { signIn } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function LoginPage() {
   const navigate  = useNavigate()
   const location  = useLocation()
+  const { refreshProfile } = useAuth()
   const from      = location.state?.from?.pathname ?? null
 
   const [form,    setForm]    = useState({ email: '', password: '' })
@@ -19,20 +21,20 @@ export default function LoginPage() {
     setError(null)
     setLoading(true)
 
-    const { data, error } = await signIn(form)
+    const { error } = await signIn(form)
+    if (error) { setError(error.message); setLoading(false); return }
+
+    // Reload profile from DB to get the real role (not stale JWT metadata)
+    const profile = await refreshProfile()
     setLoading(false)
 
-    if (error) { setError(error.message); return }
-
-    // AuthContext will update profile; navigate based on role
-    const role = data.user?.user_metadata?.role
     const dashboards = {
       admin:   '/admin',
       tutor:   '/tutor',
       parent:  '/parent',
       student: '/student',
     }
-    // Prefer the page they tried to access; fallback to role dashboard
+    const role = profile?.role ?? 'student'
     navigate(from ?? dashboards[role] ?? '/student', { replace: true })
   }
 

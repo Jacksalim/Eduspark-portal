@@ -31,6 +31,8 @@ function LandingPage() {
     />
   )
 }
+
+export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>

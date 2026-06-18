@@ -1,5 +1,5 @@
 // src/App.jsx
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import {
   RequireAuth, RequireAdmin, RequireTutor, RequireParent, RequireStudent, RedirectIfAuth
@@ -21,13 +21,22 @@ import TutorDashboard   from './pages/dashboards/TutorDashboard'
 // Public pages
 import Landing from './pages/Landing'
 
-export default function App() {
+// Landing needs onGetStarted / onSignIn props — wrap it so we can use useNavigate
+function LandingPage() {
+  const navigate = useNavigate()
+  return (
+    <Landing
+      onGetStarted={() => navigate('/register')}
+      onSignIn={() => navigate('/login')}
+    />
+  )
+}
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
           {/* ── Public ── */}
-          <Route path="/" element={<Landing />} />
+          <Route path="/" element={<LandingPage />} />
 
           {/* ── Auth routes (redirect away if already logged in) ── */}
           <Route path="/login" element={

@@ -20,6 +20,8 @@ import TutorDashboard   from './pages/dashboards/TutorDashboard'
 
 // Public pages
 import Landing from './pages/Landing'
+import EditProfile from './pages/EditProfile'
+import { PrivacyPolicy, TermsAndConditions } from './pages/PrivacyPolicy'
 
 // Landing needs onGetStarted / onSignIn props — wrap it so we can use useNavigate
 function LandingPage() {
@@ -58,6 +60,13 @@ export default function App() {
           <Route path="/apply-as-tutor" element={
             <RequireAuth><TutorApplicationPage /></RequireAuth>
           }/>
+          <Route path="/edit-profile" element={
+            <RequireAuth><EditProfile /></RequireAuth>
+          }/>
+
+          {/* ── Legal (public) ── */}
+          <Route path="/privacy-policy"      element={<PrivacyPolicy />} />
+          <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
 
           {/* ── Role dashboards ── */}
           <Route path="/student/*" element={

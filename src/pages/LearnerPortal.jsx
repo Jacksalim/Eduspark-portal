@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   fetchVideos, fetchWatchedIds, markVideoWatched,
   saveQuizResult, fetchQuizResults, fetchProgress, fetchLeaderboard
@@ -759,6 +760,13 @@ export default function LearnerPortal({ profile }) {
   const [homeProgress, setHomeProgress] = useState([])
   const [homeLoading, setHomeLoading] = useState(true)
   const { show, ToastEl } = useToast()
+  const goTo = useNavigate()
+
+  const handleSignOut = async () => {
+    const { signOut } = await import('../lib/supabase')
+    await signOut()
+    window.location.href = '/login'
+  }
 
   useEffect(() => {
     setVideoLoading(true)
@@ -800,12 +808,51 @@ export default function LearnerPortal({ profile }) {
               {s.icon} {s.label}
             </button>
           ))}
+
           <div style={{ flex: 1 }} />
+
+          {/* Apply as tutor CTA */}
+          <button
+            onClick={() => goTo('/apply-as-tutor')}
+            style={{
+              margin: '4px 8px', padding: '9px 12px', borderRadius: 8, border: 'none',
+              background: 'rgba(99,102,241,0.15)', color: '#a5b4fc',
+              fontSize: '.8rem', fontWeight: 600, cursor: 'pointer', textAlign: 'left',
+            }}
+          >
+            🎓 Apply as Tutor
+          </button>
+
+          {/* Edit profile */}
+          <button
+            onClick={() => goTo('/edit-profile')}
+            style={{
+              margin: '4px 8px', padding: '9px 12px', borderRadius: 8, border: 'none',
+              background: 'transparent', color: 'rgba(255,255,255,.5)',
+              fontSize: '.8rem', cursor: 'pointer', textAlign: 'left',
+            }}
+          >
+            ✏️ Edit my details
+          </button>
+
+          {/* Profile card */}
           <div style={{ padding: '12px', background: 'rgba(255,255,255,.04)', borderRadius: 10, margin: '8px 4px 0' }}>
             <div style={{ fontSize: '.68rem', color: 'rgba(255,255,255,.3)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 6 }}>Profile</div>
-            <div style={{ color: '#fff', fontWeight: 600, fontSize: '.875rem' }}>{profile?.name?.split(' ')[0]}</div>
+            <div style={{ color: '#fff', fontWeight: 600, fontSize: '.875rem' }}>{profile?.name?.split(' ')[0] || profile?.full_name?.split(' ')[0]}</div>
             <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.75rem', marginTop: 2 }}>Grade {profile?.grade || '—'}</div>
           </div>
+
+          {/* Sign out */}
+          <button
+            onClick={handleSignOut}
+            style={{
+              margin: '8px 8px 4px', padding: '9px 12px', borderRadius: 8, border: 'none',
+              background: 'rgba(239,68,68,0.12)', color: '#fca5a5',
+              fontSize: '.8rem', fontWeight: 600, cursor: 'pointer', textAlign: 'left',
+            }}
+          >
+            🚪 Sign out
+          </button>
         </div>
 
         <div className="portal-main">

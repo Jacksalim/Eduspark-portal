@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   fetchVideos, fetchWatchedIds, markVideoWatched,
-  saveQuizResult, fetchQuizResults, fetchProgress, fetchLeaderboard
+  saveQuizResult, fetchQuizResults, fetchProgress, fetchLeaderboard,
+  recordTopicProgress
 } from '../lib/supabase'
 import { SUBJECTS, GRADES, Spinner, ProgressBar, useToast } from '../components/ui'
 
@@ -220,7 +221,17 @@ function QuizSection({ profile }) {
   function answer(optionText) {
     if (answered) return
     setSelected(optionText); setAnswered(true)
-    if (optionText === quiz[qIdx].correctAnswer) setScore(s => s + 1)
+    const isCorrect = optionText === quiz[qIdx].correctAnswer
+    if (isCorrect) setScore(s => s + 1)
+
+    // Track per-topic mastery for grade promotion eligibility
+    const topic = quiz[qIdx].topic
+    if (profile?.id && topic) {
+      recordTopicProgress({
+        userId: profile.id, subject, grade, topic,
+        percent: isCorrect ? 100 : 0,
+      }).catch(e => console.warn('Could not record topic progress:', e.message))
+    }
   }
 
   async function next() {

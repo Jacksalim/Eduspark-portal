@@ -242,7 +242,7 @@ export async function recordTopicProgress({ userId, subject, grade, topic, perce
     .from('topic_progress')
     .select('*')
     .eq('user_id', userId).eq('subject', subject).eq('grade', grade).eq('topic', topic)
-    .single()
+    .maybeSingle()
 
   const attempts = (existing?.attempts || 0) + 1
   const bestPercent = Math.max(existing?.best_percent || 0, percent)

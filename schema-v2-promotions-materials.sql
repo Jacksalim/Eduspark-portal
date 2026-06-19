@@ -85,6 +85,13 @@ create policy "Admins view all topic progress" on public.topic_progress
 create policy "Learners view own promotions" on public.promotions
   for select using (auth.uid() = user_id);
 
+create policy "Learners record own promotion decision" on public.promotions
+  for insert with check (
+    auth.uid() = user_id
+    and decided_by = auth.uid()
+    and decision in ('promoted', 'repeated')
+  );
+
 create policy "Parents view children promotions" on public.promotions
   for select using (
     exists (select 1 from public.profiles where id = promotions.user_id and parent_id = auth.uid())

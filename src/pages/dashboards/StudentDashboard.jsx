@@ -3,9 +3,10 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import LearnerPortal from '../LearnerPortal'
+import PromotionBanner from '../../components/PromotionBanner'
 
 export default function StudentDashboard() {
-  const { profile, user } = useAuth()
+  const { profile, user, refreshProfile } = useAuth()
   const [pendingLinks, setPendingLinks] = useState([])
 
   useEffect(() => {
@@ -54,6 +55,7 @@ export default function StudentDashboard() {
           ))}
         </div>
       )}
+      <PromotionBanner userId={user?.id} grade={profile?.grade} onResolved={() => refreshProfile()} />
       <LearnerPortal profile={profile} />
     </div>
   )

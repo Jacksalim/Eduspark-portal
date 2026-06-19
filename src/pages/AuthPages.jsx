@@ -4,6 +4,7 @@ import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-do
 import { signIn, signUp } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { TermsAndConditions, PrivacyPolicy } from './PrivacyPolicy'
+import { GRADES } from '../components/ui.jsx'
 
 // ─── Login Page ───────────────────────────────────────────────────────────────
 
@@ -74,7 +75,7 @@ export function RegisterPage() {
   const [showTerms,     setShowTerms]     = useState(false)
   const [showPrivacy,   setShowPrivacy]   = useState(false)
   const [form, setForm] = useState({
-    fullName: '', email: '', phone: '', password: '', confirmPassword: '', relationship: 'Parent',
+    fullName: '', email: '', phone: '', password: '', confirmPassword: '', relationship: 'Parent', grade: '',
   })
   const [error,   setError]   = useState(null)
   const [success, setSuccess] = useState(false)
@@ -87,6 +88,7 @@ export function RegisterPage() {
     if (!form.email.trim())           return 'Email is required'
     if (form.password.length < 8)     return 'Password must be at least 8 characters'
     if (form.password !== form.confirmPassword) return 'Passwords do not match'
+    if (role === 'student' && !form.grade) return 'Please select your grade'
     if (!acceptedTerms)               return 'You must accept the Terms and Conditions to continue'
     return null
   }
@@ -96,10 +98,19 @@ export function RegisterPage() {
     const err = validate()
     if (err) { setError(err); return }
     setError(null); setLoading(true)
-    const { error } = await signUp({ email: form.email, password: form.password, fullName: form.fullName, role })
+    try {
+      await signUp({
+        email: form.email,
+        password: form.password,
+        name: form.fullName,
+        role,
+        grade: role === 'student' ? form.grade : null,
+      })
+      setSuccess(true)
+    } catch (e) {
+      setError(e.message)
+    }
     setLoading(false)
-    if (error) { setError(error.message); return }
-    setSuccess(true)
   }
 
   if (success) {
@@ -126,7 +137,7 @@ export function RegisterPage() {
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         {['student', 'parent'].map(r => (
-          <button key={r} type="button" onClick={() => setRole(r)} style={{
+          <button key={r} type="button" onClick={() => { setRole(r); if (r !== 'student') setForm(f => ({ ...f, grade: '' })) }} style={{
             flex: 1, padding: '10px 0', borderRadius: 8, border: '1.5px solid',
             borderColor: role === r ? '#6366f1' : '#e5e7eb',
             background: role === r ? '#eef2ff' : 'white',
@@ -143,6 +154,21 @@ export function RegisterPage() {
         <Field label="Full name" name="fullName" value={form.fullName} onChange={handleChange} required />
         <Field label="Email" name="email" type="email" value={form.email} onChange={handleChange} required />
         <Field label="Phone (optional)" name="phone" type="tel" value={form.phone} onChange={handleChange} />
+
+        {role === 'student' && (
+          <div>
+            <label style={labelStyle}>Choose your grade *</label>
+            <select name="grade" value={form.grade} onChange={handleChange} required style={inputStyle}>
+              <option value="" disabled>Select grade…</option>
+              {GRADES.map(g => (
+                <option key={g} value={g}>{g === 'R' ? 'Grade R (Reception)' : `Grade ${g}`}</option>
+              ))}
+            </select>
+            <p style={{ fontSize: 12, color: '#9ca3af', margin: '4px 0 0' }}>
+              You'll be reviewed for promotion to the next grade at the end of each academic year.
+            </p>
+          </div>
+        )}
 
         {role === 'parent' && (
           <div>

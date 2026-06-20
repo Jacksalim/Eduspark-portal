@@ -6,6 +6,9 @@ import {
   recordTopicProgress
 } from '../lib/supabase'
 import { SUBJECTS, GRADES, Spinner, ProgressBar, useToast } from '../components/ui'
+import NotesSection from './learner/NotesSection'
+import RevisionSection from './learner/RevisionSection'
+import SidebarProfileDropdown from '../components/SidebarProfileDropdown'
 
 const QUOTES = [
   { text: "The beautiful thing about learning is that nobody can take it away from you.", author: "B.B. King" },
@@ -796,6 +799,8 @@ export default function LearnerPortal({ profile }) {
     { id: 'home',        icon: '🏠', label: 'Dashboard' },
     { id: 'lessons',     icon: '▶️', label: 'Video Lessons' },
     { id: 'quiz',        icon: '📝', label: 'AI Quiz' },
+    { id: 'notes',       icon: '📓', label: 'Notes' },
+    { id: 'revision',    icon: '📚', label: 'Revision' },
     { id: 'progress',    icon: '📊', label: 'My Progress' },
     { id: 'leaderboard', icon: '🏆', label: 'Leaderboard' },
   ]
@@ -847,11 +852,12 @@ export default function LearnerPortal({ profile }) {
           </button>
 
           {/* Profile card */}
-          <div style={{ padding: '12px', background: 'rgba(255,255,255,.04)', borderRadius: 10, margin: '8px 4px 0' }}>
-            <div style={{ fontSize: '.68rem', color: 'rgba(255,255,255,.3)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 6 }}>Profile</div>
-            <div style={{ color: '#fff', fontWeight: 600, fontSize: '.875rem' }}>{profile?.name?.split(' ')[0] || profile?.full_name?.split(' ')[0]}</div>
-            <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.75rem', marginTop: 2 }}>Grade {profile?.grade || '—'}</div>
-          </div>
+          <SidebarProfileDropdown
+            profile={profile}
+            streak={calcStreak(homeQuizzes)}
+            badgesEarned={getAchievements(homeQuizzes, watchedIds).filter(b => b.earned).length}
+            badgesTotal={getAchievements(homeQuizzes, watchedIds).length}
+          />
 
           {/* Sign out */}
           <button
@@ -935,6 +941,8 @@ export default function LearnerPortal({ profile }) {
           )}
 
           {section === 'quiz'        && <QuizSection profile={profile} />}
+          {section === 'notes'       && <NotesSection profile={profile} />}
+          {section === 'revision'    && <RevisionSection profile={profile} />}
           {section === 'progress'    && <ProgressSection profile={profile} />}
           {section === 'leaderboard' && <LeaderboardSection profile={profile} />}
         </div>

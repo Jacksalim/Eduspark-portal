@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import AdminMaterials from '../admin/AdminMaterials'
+import AdminPromotions from '../admin/AdminPromotions'
 
 export default function AdminDashboard() {
   const { profile } = useAuth()
@@ -14,6 +16,8 @@ export default function AdminDashboard() {
     { id: 'applications',  label: 'Tutor applications' },
     { id: 'parent-links',  label: 'Parent links' },
     { id: 'users',         label: 'Users' },
+    { id: 'materials',     label: 'Study materials' },
+    { id: 'promotions',    label: 'Grade promotions' },
     { id: 'audit',         label: 'Audit log' },
   ]
 
@@ -37,6 +41,8 @@ export default function AdminDashboard() {
       {activeTab === 'applications' && <TutorApplicationsPanel />}
       {activeTab === 'parent-links' && <ParentLinksPanel />}
       {activeTab === 'users'        && <UsersPanel />}
+      {activeTab === 'materials'    && <AdminMaterials profile={profile} />}
+      {activeTab === 'promotions'   && <AdminPromotions profile={profile} />}
       {activeTab === 'audit'        && <AuditLogPanel />}
     </DashboardShell>
   )

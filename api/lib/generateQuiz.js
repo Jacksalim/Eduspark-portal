@@ -52,7 +52,7 @@ async function callGemini(grade, subject, params, attempt) {
   log.info(`Gemini attempt ${attempt}/${MAX_RETRIES + 1}`, { grade, subject, topics: params.topics, seed: params.seed })
 
   const prompt = buildPrompt({ grade, subject, ...params })
-  const url    = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`
+  const url    = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
 
   const response = await withTimeout(
     fetch(url, {
@@ -106,7 +106,7 @@ async function callGemini(grade, subject, params, attempt) {
 
   const finalQuestions = shuffleOptions(parsed.questions)
   log.ok('Gemini success', { grade, subject, topics: params.topics, questions: finalQuestions.length })
-  return { questions: finalQuestions, provider: 'gemini', model: 'gemini-1.5-flash', topics: params.topics, difficulty: params.difficulty }
+  return { questions: finalQuestions, provider: 'gemini', model: 'gemini-2.5-flash', topics: params.topics, difficulty: params.difficulty }
 }
 
 // ── ANTHROPIC provider ────────────────────────────────────────────────────────

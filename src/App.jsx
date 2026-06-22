@@ -22,6 +22,9 @@ import TutorDashboard   from './pages/dashboards/TutorDashboard'
 import Landing from './pages/Landing'
 import EditProfile from './pages/EditProfile'
 import { PrivacyPolicy, TermsAndConditions } from './pages/PrivacyPolicy'
+import AboutUs from './pages/public/AboutUs'
+import OurServices from './pages/public/OurServices'
+import Blog from './pages/public/Blog'
 
 // Landing needs onGetStarted / onSignIn props — wrap it so we can use useNavigate
 function LandingPage() {
@@ -67,6 +70,11 @@ export default function App() {
           {/* ── Legal (public) ── */}
           <Route path="/privacy-policy"      element={<PrivacyPolicy />} />
           <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+
+          {/* ── Company info (public, accessible from dashboard menus too) ── */}
+          <Route path="/about"    element={<AboutUs />} />
+          <Route path="/services" element={<OurServices />} />
+          <Route path="/blog"     element={<Blog />} />
 
           {/* ── Role dashboards ── */}
           <Route path="/student/*" element={

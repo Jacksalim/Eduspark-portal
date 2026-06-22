@@ -5,9 +5,10 @@ import {
   saveQuizResult, fetchQuizResults, fetchProgress, fetchLeaderboard,
   recordTopicProgress
 } from '../lib/supabase'
-import { SUBJECTS, GRADES, Spinner, ProgressBar, useToast } from '../components/ui'
+import { SUBJECTS, Spinner, ProgressBar, useToast } from '../components/ui'
 import NotesSection from './learner/NotesSection'
 import RevisionSection from './learner/RevisionSection'
+import DashboardHeader from '../components/DashboardHeader'
 import SidebarProfileDropdown from '../components/SidebarProfileDropdown'
 
 const QUOTES = [
@@ -169,7 +170,7 @@ function fallbackQuestions(subject, grade) {
 const DIFFICULTY_LABELS = { easy: '🟢 Easy', medium: '🟡 Medium', hard: '🔴 Hard', mixed: '🎲 Mixed' }
 
 function QuizSection({ profile }) {
-  const [grade, setGrade] = useState(profile?.grade || '7')
+  const grade = profile?.grade || '7'
   const [subject, setSubject] = useState('Mathematics')
   const [difficulty, setDifficulty] = useState('mixed')
   const [quiz, setQuiz] = useState(null)
@@ -264,9 +265,12 @@ function QuizSection({ profile }) {
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24, alignItems: 'flex-end' }}>
         <div className="form-group" style={{ margin: 0 }}>
           <label style={{ fontSize: '.75rem', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>Grade</label>
-          <select className="form-control" value={grade} onChange={e => setGrade(e.target.value)} style={{ width: 120 }}>
-            {GRADES.map(g => <option key={g} value={g}>{g === 'R' ? 'Grade R' : `Grade ${g}`}</option>)}
-          </select>
+          <div style={{
+            padding: '8px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.1)',
+            color: '#6366f1', fontWeight: 700, fontSize: '.9rem', width: 'fit-content',
+          }}>
+            {grade === 'R' ? 'Grade R' : `Grade ${grade}`}
+          </div>
         </div>
         <div className="form-group" style={{ margin: 0 }}>
           <label style={{ fontSize: '.75rem', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>Subject</label>
@@ -691,7 +695,7 @@ function ProgressSection({ profile }) {
 // ── Leaderboard Section ────────────────────────────────────────────────────────
 function LeaderboardSection({ profile }) {
   const [subject, setSubject] = useState('Mathematics')
-  const [grade, setGrade] = useState(profile?.grade || '7')
+  const grade = profile?.grade || '7'
   const [board, setBoard] = useState([])
   const [loading, setLoading] = useState(false)
 
@@ -717,15 +721,12 @@ function LeaderboardSection({ profile }) {
     <div>
       <div className="section-header">
         <h2>🏆 Leaderboard</h2>
-        <p>Top performers by subject and grade. Names are anonymised to protect privacy.</p>
+        <p>Top performers in Grade {grade === 'R' ? 'R' : grade}, by subject. Names are anonymised to protect privacy.</p>
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
         <select className="form-control" value={subject} onChange={e => setSubject(e.target.value)} style={{ width: 200 }}>
           {Object.keys(SUBJECTS).map(s => <option key={s}>{s}</option>)}
-        </select>
-        <select className="form-control" value={grade} onChange={e => setGrade(e.target.value)} style={{ width: 130 }}>
-          {GRADES.map(g => <option key={g} value={g}>{g === 'R' ? 'Grade R' : `Grade ${g}`}</option>)}
         </select>
       </div>
 
@@ -764,7 +765,9 @@ function LeaderboardSection({ profile }) {
 // ── Main Learner Portal ────────────────────────────────────────────────────────
 export default function LearnerPortal({ profile }) {
   const [section, setSection] = useState('home')
-  const [grade, setGrade] = useState(profile?.grade || '7')
+  // Grade is fixed to what the learner chose at sign-up — never user-selectable
+  // here. It only changes via the grade-promotion flow, which updates `profile`.
+  const grade = profile?.grade || '7'
   const [subject, setSubject] = useState('Mathematics')
   const [videos, setVideos] = useState([])
   const [watchedIds, setWatchedIds] = useState([])
@@ -806,17 +809,19 @@ export default function LearnerPortal({ profile }) {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-      {ToastEl}
-      {openVideo && (
-        <VideoModal
-          video={openVideo} userId={profile?.id}
-          onClose={() => setOpenVideo(null)}
-          onWatched={() => setWatchedIds(ids => ids.includes(openVideo.id) ? ids : [...ids, openVideo.id])}
-        />
-      )}
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <DashboardHeader role="student" profile={profile} />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+        {ToastEl}
+        {openVideo && (
+          <VideoModal
+            video={openVideo} userId={profile?.id}
+            onClose={() => setOpenVideo(null)}
+            onWatched={() => setWatchedIds(ids => ids.includes(openVideo.id) ? ids : [...ids, openVideo.id])}
+          />
+        )}
 
-      <div className="portal-layout">
+        <div className="portal-layout">
         <div className="sidebar">
           <div className="sidebar-section">Navigation</div>
           {sideItems.map(s => (
@@ -888,17 +893,7 @@ export default function LearnerPortal({ profile }) {
             <>
               <div className="section-header">
                 <h2>▶️ Video Lessons</h2>
-                <p>Browse lessons by grade and subject. Click any video to watch it.</p>
-              </div>
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: '.72rem', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#aaa', marginBottom: 10 }}>Grade</div>
-                <div className="grade-scroll">
-                  {GRADES.map(g => (
-                    <button key={g} className={`grade-pill ${grade === g ? 'active' : ''}`} onClick={() => setGrade(g)}>
-                      {g === 'R' ? 'Grade R' : `Grade ${g}`}
-                    </button>
-                  ))}
-                </div>
+                <p>Lessons for Grade {grade === 'R' ? 'R' : grade} · Pick a subject below.</p>
               </div>
               <div style={{ marginBottom: 22 }}>
                 <div style={{ fontSize: '.72rem', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#aaa', marginBottom: 10 }}>Subject</div>
@@ -946,6 +941,7 @@ export default function LearnerPortal({ profile }) {
           {section === 'progress'    && <ProgressSection profile={profile} />}
           {section === 'leaderboard' && <LeaderboardSection profile={profile} />}
         </div>
+      </div>
       </div>
     </div>
   )

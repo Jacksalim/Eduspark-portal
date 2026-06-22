@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import DashboardHeader from '../../components/DashboardHeader'
 
 export default function ParentDashboard() {
   const { profile, user } = useAuth()
@@ -397,35 +398,9 @@ const inputStyle = { width: '100%', padding: '9px 12px', borderRadius: 8, fontSi
 const btnStyle   = { padding: '10px 20px', background: '#6366f1', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }
 
 function DashboardShell({ role, profile, children }) {
-  const navigate = useNavigate()
-  const handleSignOut = async () => {
-    const { signOut } = await import('../../lib/supabase')
-    await signOut()
-    navigate('/login')
-  }
-  const ROLE_COLORS = { admin: '#7c3aed', tutor: '#0891b2', parent: '#059669', student: '#6366f1' }
   return (
     <div style={{ minHeight: '100vh', background: '#f9fafb' }}>
-      <header style={{
-        background: 'white', borderBottom: '1px solid #f3f4f6',
-        padding: '0 24px', display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', height: 60,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 32, height: 32, background: '#6366f1', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          </div>
-          <span style={{ fontWeight: 700, color: '#111827' }}>EduSpark</span>
-          <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, textTransform: 'capitalize', color: 'white', background: ROLE_COLORS[role] }}>
-            {role}
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 14, color: '#6b7280' }}>{profile?.full_name || profile?.email}</span>
-          <button onClick={() => navigate('/edit-profile')} style={{ padding: '6px 14px', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>✏️ Edit profile</button>
-          <button onClick={handleSignOut} style={{ padding: '6px 14px', background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>Sign out</button>
-        </div>
-      </header>
+      <DashboardHeader role={role} profile={profile} />
       <main style={{ padding: '32px 24px', maxWidth: 1100, margin: '0 auto' }}>{children}</main>
     </div>
   )

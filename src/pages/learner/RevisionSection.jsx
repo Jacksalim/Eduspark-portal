@@ -1,11 +1,11 @@
 // src/pages/learner/RevisionSection.jsx
 import { useState, useEffect } from 'react'
 import { fetchStudyMaterials } from '../../lib/supabase'
-import { SUBJECTS, GRADES, Spinner } from '../../components/ui'
+import { SUBJECTS, Spinner } from '../../components/ui'
 
 export default function RevisionSection({ profile }) {
   const [subject, setSubject] = useState('Mathematics')
-  const [grade, setGrade]     = useState(profile?.grade || '7')
+  const grade = profile?.grade || '7'
   const [type, setType]       = useState('past_paper')
   const [materials, setMaterials] = useState([])
   const [loading, setLoading] = useState(true)
@@ -23,7 +23,7 @@ export default function RevisionSection({ profile }) {
     <div>
       <div className="section-header">
         <h2>📄 Revision Materials</h2>
-        <p>Past papers and revision guides to help you prepare for exams.</p>
+        <p>Grade {grade === 'R' ? 'R' : grade} past papers and revision guides to help you prepare for exams.</p>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
@@ -35,9 +35,6 @@ export default function RevisionSection({ profile }) {
       <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
         <select className="form-control" value={subject} onChange={e => setSubject(e.target.value)} style={{ width: 200 }}>
           {Object.keys(SUBJECTS).map(s => <option key={s}>{s}</option>)}
-        </select>
-        <select className="form-control" value={grade} onChange={e => setGrade(e.target.value)} style={{ width: 130 }}>
-          {GRADES.map(g => <option key={g} value={g}>{g === 'R' ? 'Grade R' : `Grade ${g}`}</option>)}
         </select>
       </div>
 

@@ -43,7 +43,7 @@ export async function signUp({ email, password, name, role, grade }) {
     const dbRole = role === 'student' ? 'student' : role
     const { error: pe } = await supabase
       .from('profiles')
-      .insert({ id: data.user.id, full_name: name, role: dbRole, grade: grade || null, email })
+      .insert({ id: data.user.id, full_name: name, role: dbRole, email, grade: grade || null })
     if (pe) console.warn('Profile insert error:', pe.message)
 
     // Send branded welcome email via Resend (non-blocking — won't break signup if it fails)

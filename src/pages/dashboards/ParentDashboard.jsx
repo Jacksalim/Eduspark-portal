@@ -178,7 +178,7 @@ function LinkChildPanel({ userId }) {
       return
     }
 
-    if (student.role !== 'student') {
+    if (student.role !== 'learner') {
       setError('That account is not a student account.')
       setLoading(false)
       return

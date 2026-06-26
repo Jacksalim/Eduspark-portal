@@ -57,7 +57,7 @@ function AdminOverview() {
   useEffect(() => {
     async function load() {
       const [students, tutors, parents, apps] = await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'student'),
+        supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'learner'),
         supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'tutor'),
         supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'parent'),
         supabase.from('tutor_applications').select('id', { count: 'exact' }).eq('status', 'pending'),

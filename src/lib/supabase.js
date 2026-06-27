@@ -174,9 +174,13 @@ export async function fetchAllLearners() {
 }
 
 export async function fetchChildrenForParent(parentId) {
-  const { data, error } = await supabase.from('profiles').select('*, progress(*), quiz_results(*)').eq('parent_id', parentId)
+  const { data, error } = await supabase
+    .from('parent_student_links')
+    .select('*, student:profiles!parent_student_links_student_id_fkey(id, full_name, email, grade, avatar_url)')
+    .eq('parent_id', parentId)
+    .eq('status', 'approved')
   if (error) throw error
-  return data || []
+  return (data || []).map(l => l.student).filter(Boolean)
 }
 
 export async function findLearnerByEmail(email) {

@@ -1,4 +1,13 @@
 -- ============================================================
+-- DEPRECATED — do not run this file directly.
+-- All schema definitions have been consolidated into:
+--   sql/schema.sql                  ← production schema (run this)
+--   sql/migrate_existing_users.sql  ← run after schema.sql on existing DBs
+--
+-- This file (02_rls_policies.sql) is kept for historical reference only.
+-- ============================================================
+
+-- ============================================================
 -- EduSpark — Row Level Security Policies
 -- Run AFTER 01_schema.sql
 -- ============================================================

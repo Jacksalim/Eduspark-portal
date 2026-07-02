@@ -1,4 +1,13 @@
 -- ============================================================
+-- DEPRECATED — do not run this file directly.
+-- All schema definitions have been consolidated into:
+--   sql/schema.sql                  ← production schema (run this)
+--   sql/migrate_existing_users.sql  ← run after schema.sql on existing DBs
+--
+-- This file (06_missing_tables.sql) is kept for historical reference only.
+-- ============================================================
+
+-- ============================================================
 -- Migration 06: Add missing tables
 -- Run in Supabase SQL Editor
 -- ============================================================

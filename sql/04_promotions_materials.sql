@@ -1,4 +1,13 @@
 -- ============================================================
+-- DEPRECATED — do not run this file directly.
+-- All schema definitions have been consolidated into:
+--   sql/schema.sql                  ← production schema (run this)
+--   sql/migrate_existing_users.sql  ← run after schema.sql on existing DBs
+--
+-- This file (04_promotions_materials.sql) is kept for historical reference only.
+-- ============================================================
+
+-- ============================================================
 -- EduSpark Schema v2 — Grade Promotion, Topic Progress,
 -- Notes & Revision Materials (Past Papers)
 -- Run this in Supabase → SQL Editor AFTER schema.sql

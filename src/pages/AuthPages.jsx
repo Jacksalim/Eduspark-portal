@@ -25,8 +25,13 @@ export default function LoginPage() {
     setError(null)
     setLoading(true)
 
-    const { error } = await signIn(form)
-    if (error) { setError(error.message); setLoading(false); return }
+    try {
+      await signIn(form)
+    } catch (err) {
+      setError(err.message)
+      setLoading(false)
+      return
+    }
 
     const profile = await refreshProfile()
     setLoading(false)

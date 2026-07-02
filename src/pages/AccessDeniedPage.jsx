@@ -98,10 +98,14 @@ export function ForgotPasswordPage() {
     e.preventDefault()
     setError(null)
     setLoading(true)
-    const { error } = await resetPassword(email)
-    setLoading(false)
-    if (error) { setError(error.message); return }
-    setSent(true)
+    try {
+      await resetPassword(email)
+      setSent(true)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (sent) {

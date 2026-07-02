@@ -11,6 +11,7 @@ import { RegisterPage }       from './pages/AuthPages'
 import { ForgotPasswordPage } from './pages/AccessDeniedPage'
 import AccessDeniedPage       from './pages/AccessDeniedPage'
 import TutorApplicationPage   from './pages/TutorApplicationPage'
+import PasswordResetPage      from './pages/PasswordResetPage'
 
 // Dashboards
 import StudentDashboard from './pages/dashboards/StudentDashboard'
@@ -55,6 +56,7 @@ export default function App() {
           <Route path="/forgot-password" element={
             <RedirectIfAuth><ForgotPasswordPage /></RedirectIfAuth>
           }/>
+          <Route path="/reset-password" element={<PasswordResetPage />} />
 
           {/* ── Shared protected ── */}
           <Route path="/access-denied" element={

@@ -67,7 +67,7 @@ export async function resetPassword(email) {
   // redirectTo must be listed in Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
   // Supabase appends #access_token=...&type=recovery to this URL so PasswordResetPage can intercept it.
   const redirectTo = typeof window !== 'undefined'
-    ? `${window.location.origin}/`
+    ? `${window.location.origin}/reset-password`
     : undefined
 
   const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo })
@@ -133,7 +133,7 @@ export async function fetchQuizResults(userId) {
 export async function fetchLeaderboard(subject, grade) {
   const { data, error } = await supabase
     .from('quiz_results')
-    .select('user_id, percent, score, total, created_at, profiles(name)')
+    .select('user_id, percent, score, total, created_at, profiles(full_name)')
     .eq('subject', subject)
     .eq('grade', grade)
     .order('percent', { ascending: false })
@@ -168,7 +168,7 @@ export async function fetchProgress(userId) {
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
 export async function fetchAllLearners() {
-  const { data, error } = await supabase.from('profiles').select('*').eq('role', 'learner').order('created_at', { ascending: false })
+  const { data, error } = await supabase.from('profiles').select('*').in('role', ['student', 'learner']).order('created_at', { ascending: false })
   if (error) throw error
   return data || []
 }
@@ -186,9 +186,9 @@ export async function fetchChildrenForParent(parentId) {
 export async function findLearnerByEmail(email) {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, name, grade, email')
+    .select('id, full_name, grade, email')
     .eq('email', email.trim().toLowerCase())
-    .eq('role', 'learner')
+    .in('role', ['student', 'learner'])
     .single()
   if (error) throw error
   return data
@@ -199,7 +199,7 @@ export async function linkChildToParent(learnerId, parentId) {
     .from('profiles')
     .update({ parent_id: parentId })
     .eq('id', learnerId)
-    .eq('role', 'learner')
+    .in('role', ['student', 'learner'])
   if (error) throw error
 }
 
@@ -217,7 +217,7 @@ export async function logVisit(page, userId) {
 }
 
 export async function fetchVisits() {
-  const { data, error } = await supabase.from('visits').select('*, profiles(name, role)').order('visited_at', { ascending: false }).limit(100)
+  const { data, error } = await supabase.from('visits').select('*, profiles(full_name, role)').order('visited_at', { ascending: false }).limit(100)
   if (error) throw error
   return data || []
 }

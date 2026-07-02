@@ -52,8 +52,18 @@ export function AuthProvider({ children }) {
       })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
         if (cancelled) return
+        // PASSWORD_RECOVERY: user clicked the reset link in their email.
+        // Set session so updatePassword() works, but route to /reset-password.
+        if (event === 'PASSWORD_RECOVERY') {
+          setSession(session)
+          setLoading(false)
+          if (typeof window !== 'undefined') {
+            window.location.replace('/reset-password')
+          }
+          return
+        }
         setSession(session)
         await loadProfile(session?.user?.id)
         setLoading(false)

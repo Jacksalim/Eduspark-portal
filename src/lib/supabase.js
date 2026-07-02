@@ -33,7 +33,7 @@ export async function signUp({ email, password, name, role, grade }) {
     email,
     password,
     options: {
-      data: { name, role, grade },
+      data: { full_name: name, role, grade },
       emailRedirectTo,
     },
   })

@@ -74,6 +74,18 @@ export async function resetPassword(email) {
   if (error) throw error
 }
 
+
+export async function sendMagicLink(email) {
+  // Signs in an existing user via a one-time email link — no password needed.
+  // shouldCreateUser: false means it won't silently create a new account.
+  const emailRedirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
+  const { error } = await supabase.auth.signInWithOtp({
+    email: email.trim(),
+    options: { emailRedirectTo, shouldCreateUser: false },
+  })
+  if (error) throw error
+}
+
 export async function updatePassword(newPassword) {
   const { error } = await supabase.auth.updateUser({ password: newPassword })
   if (error) throw error

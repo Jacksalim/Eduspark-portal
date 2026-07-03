@@ -43,11 +43,8 @@ function TopicAssessment({ grade, subject, topic, onPass, onClose }) {
   const next = async () => {
     const isLast = qIdx + 1 >= quiz.length
     if (!isLast) { setQIdx(i => i + 1); setSelected(null); setAnswered(false); return }
-    const finalScore = score + (selected === quiz[qIdx].correctAnswer ? 0 : 0) + score - score +
-      (selected === quiz[qIdx].correctAnswer ? 1 : 0)
-    // recalc properly
-    const actualFinal = score + (selected === quiz[qIdx].correctAnswer ? 1 : 0)
-    const pct = Math.round((actualFinal / quiz.length) * 100)
+    // score is already up-to-date (React re-rendered after answer() before this click)
+    const pct = Math.round((score / quiz.length) * 100)
     setDone(true)
     if (pct >= 70 && onPass) {
       setSaving(true)

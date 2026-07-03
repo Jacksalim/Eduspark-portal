@@ -8,7 +8,6 @@ import {
 import { SUBJECTS, Spinner, ProgressBar, useToast } from '../components/ui'
 import NotesSection from './learner/NotesSection'
 import RevisionSection from './learner/RevisionSection'
-import DashboardHeader from '../components/DashboardHeader'
 import SidebarProfileDropdown from '../components/SidebarProfileDropdown'
 
 const QUOTES = [
@@ -466,7 +465,7 @@ function DashboardHome({ profile, quizzes, progress, watchedIds, loading, onNavi
               🎓 Learner Dashboard
             </div>
             <h2 style={{ fontSize: 'clamp(1.4rem,3vw,2rem)', fontFamily: "'Playfair Display',serif", marginBottom: 4 }}>
-              Welcome back, {profile?.name?.split(' ')[0] || 'Learner'}! 👋
+              Welcome back, {profile?.full_name?.split(' ')[0] || 'Learner'}! 👋
             </h2>
             <div style={{ opacity: .65, fontSize: '.88rem' }}>Grade {profile?.grade || '—'} · {new Date().toLocaleDateString('en-ZA', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
             <div className="dash-hero-quote">"{quote.text}" — {quote.author}</div>
@@ -749,7 +748,7 @@ function LeaderboardSection({ profile }) {
               <div className="lb-rank" style={{ color: i < 3 ? ['#c9a84c','#888','#b87a00'][i] : '#ccc' }}>
                 {i < 3 ? medals[i] : `#${i + 1}`}
               </div>
-              <div className="lb-name">{anonymize(r.profiles?.name, r.user_id)}</div>
+              <div className="lb-name">{anonymize(r.profiles?.full_name, r.user_id)}</div>
               <span className={`pill ${r.percent >= 70 ? 'pill-green' : r.percent >= 50 ? 'pill-amber' : 'pill-red'}`} style={{ marginRight: 8 }}>
                 {r.score}/{r.total}
               </span>
@@ -809,20 +808,30 @@ export default function LearnerPortal({ profile }) {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <DashboardHeader role="student" profile={profile} />
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-        {ToastEl}
-        {openVideo && (
-          <VideoModal
-            video={openVideo} userId={profile?.id}
-            onClose={() => setOpenVideo(null)}
-            onWatched={() => setWatchedIds(ids => ids.includes(openVideo.id) ? ids : [...ids, openVideo.id])}
-          />
-        )}
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
+      {ToastEl}
+      {openVideo && (
+        <VideoModal
+          video={openVideo} userId={profile?.id}
+          onClose={() => setOpenVideo(null)}
+          onWatched={() => setWatchedIds(ids => ids.includes(openVideo.id) ? ids : [...ids, openVideo.id])}
+        />
+      )}
 
-        <div className="portal-layout">
+      <div className="portal-layout">
         <div className="sidebar">
+          {/* ── Logo ── */}
+          <div style={{ padding: '20px 16px 14px', borderBottom: '1px solid rgba(255,255,255,.08)', marginBottom: 8, flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 30, height: 30, background: '#6366f1', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, color: 'white', fontSize: '.95rem', lineHeight: 1.2 }}>EduSpark</div>
+                <div style={{ fontSize: '.65rem', color: 'rgba(255,255,255,.4)', letterSpacing: '1px', textTransform: 'uppercase' }}>Learner Portal</div>
+              </div>
+            </div>
+          </div>
           <div className="sidebar-section">Navigation</div>
           {sideItems.map(s => (
             <button key={s.id} className={`sidebar-btn ${section === s.id ? 'active' : ''}`} onClick={() => setSection(s.id)}>
@@ -941,7 +950,6 @@ export default function LearnerPortal({ profile }) {
           {section === 'progress'    && <ProgressSection profile={profile} />}
           {section === 'leaderboard' && <LeaderboardSection profile={profile} />}
         </div>
-      </div>
       </div>
     </div>
   )

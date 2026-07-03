@@ -57,7 +57,7 @@ function AdminOverview() {
   useEffect(() => {
     async function load() {
       const [students, tutors, parents, apps] = await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'student'),
+        supabase.from('profiles').select('id', { count: 'exact' }).in('role', ['student', 'learner']),
         supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'tutor'),
         supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'parent'),
         supabase.from('tutor_applications').select('id', { count: 'exact' }).eq('status', 'pending'),
@@ -73,7 +73,7 @@ function AdminOverview() {
   }, [])
 
   const cards = [
-    { label: 'Students',          value: stats?.students, color: '#6366f1', bg: '#eef2ff' },
+    { label: 'Learners',          value: stats?.students, color: '#6366f1', bg: '#eef2ff' },
     { label: 'Tutors',            value: stats?.tutors,   color: '#0891b2', bg: '#ecfeff' },
     { label: 'Parents',           value: stats?.parents,  color: '#059669', bg: '#f0fdf4' },
     { label: 'Pending apps',      value: stats?.pending,  color: '#d97706', bg: '#fffbeb' },
@@ -445,6 +445,7 @@ function RoleBadge({ role }) {
     tutor: { color: '#0369a1', bg: '#e0f2fe' },
     parent: { color: '#065f46', bg: '#d1fae5' },
     student: { color: '#374151', bg: '#f3f4f6' },
+    learner: { color: '#374151', bg: '#f3f4f6' },
   }[role] ?? { color: '#374151', bg: '#f3f4f6' }
 
   return (

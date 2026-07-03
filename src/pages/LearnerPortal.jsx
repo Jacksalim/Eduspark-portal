@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   fetchVideos, fetchWatchedIds, markVideoWatched,
   saveQuizResult, fetchQuizResults, fetchProgress, fetchLeaderboard,
-  recordTopicProgress
+  recordTopicProgress, signOut
 } from '../lib/supabase'
 import { SUBJECTS, Spinner, ProgressBar, useToast } from '../components/ui'
 import NotesSection from './learner/NotesSection'
@@ -779,9 +779,8 @@ export default function LearnerPortal({ profile }) {
   const goTo = useNavigate()
 
   const handleSignOut = async () => {
-    const { signOut } = await import('../lib/supabase')
     await signOut()
-    window.location.href = '/login'
+    navigate('/login')
   }
 
   useEffect(() => {

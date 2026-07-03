@@ -1,7 +1,7 @@
 // src/pages/dashboards/ParentDashboard.jsx
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import { supabase, updateProfile } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import DashboardHeader from '../../components/DashboardHeader'
 
@@ -318,7 +318,6 @@ function AccountSettings({ profile }) {
   const handleSave = async (e) => {
     e.preventDefault()
     setSaving(true)
-    const { updateProfile } = await import('../../lib/supabase')
     await updateProfile(profile.id, form)
     await refreshProfile()
     setSaving(false)

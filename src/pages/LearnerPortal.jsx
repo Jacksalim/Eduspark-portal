@@ -865,6 +865,33 @@ export default function LearnerPortal({ profile }) {
             ✏️ Edit my details
           </button>
 
+          {/* More links — restored from header dropdown */}
+          <div style={{ margin: '4px 8px 0', borderTop: '1px solid rgba(255,255,255,.07)', paddingTop: 8 }}>
+            <div style={{ fontSize: '.62rem', fontWeight: 700, color: 'rgba(255,255,255,.28)', letterSpacing: '1.2px', textTransform: 'uppercase', padding: '0 4px 4px' }}>EduSpark</div>
+            {[
+              { icon: 'ℹ️', label: 'About Us',           path: '/about' },
+              { icon: '🧩', label: 'Our Services',        path: '/services' },
+              { icon: '📰', label: 'Blog',                path: '/blog' },
+              { icon: '📄', label: 'Terms & Conditions',  path: '/terms-and-conditions' },
+              { icon: '🔒', label: 'Privacy Policy',      path: '/privacy-policy' },
+            ].map(item => (
+              <button
+                key={item.path}
+                onClick={() => goTo(item.path)}
+                style={{
+                  display: 'block', width: '100%', padding: '7px 12px', borderRadius: 6,
+                  border: 'none', background: 'transparent', color: 'rgba(255,255,255,.45)',
+                  fontSize: '.78rem', cursor: 'pointer', textAlign: 'left',
+                  transition: 'background .15s, color .15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,.07)'; e.currentTarget.style.color = 'rgba(255,255,255,.75)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,.45)' }}
+              >
+                {item.icon} {item.label}
+              </button>
+            ))}
+          </div>
+
           {/* Profile card */}
           <SidebarProfileDropdown
             profile={profile}

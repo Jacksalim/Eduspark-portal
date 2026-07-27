@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import {
   RequireAuth, RequireAdmin, RequireTutor, RequireParent, RequireStudent, RedirectIfAuth
 } from './components/auth/RouteGuards'
+import { RequireLearner } from './components/auth/RequireLearner'
 
 // Auth pages
 import LoginPage              from './pages/AuthPages'
@@ -15,6 +16,7 @@ import PasswordResetPage      from './pages/PasswordResetPage'
 
 // Dashboards
 import StudentDashboard from './pages/dashboards/StudentDashboard'
+import LearnerDashboard from './pages/dashboards/LearnerDashboard'
 import ParentDashboard  from './pages/dashboards/ParentDashboard'
 import AdminDashboard   from './pages/dashboards/AdminDashboard'
 import TutorDashboard   from './pages/dashboards/TutorDashboard'
@@ -82,18 +84,23 @@ export default function App() {
           <Route path="/student/*" element={
             <RequireStudent><StudentDashboard /></RequireStudent>
           }/>
+
+          {/* New learner routes (alias to student for rollout) */}
+          <Route path="/learner/*" element={
+            <RequireLearner><LearnerDashboard /></RequireLearner>
+          }/>
+
           <Route path="/tutor/*" element={
             <RequireTutor><TutorDashboard /></RequireTutor>
           }/>
           <Route path="/parent/*" element={
             <RequireParent><ParentDashboard /></RequireParent>
           }/>
+
           <Route path="/admin/*" element={
             <RequireAdmin><AdminDashboard /></RequireAdmin>
           }/>
 
-          {/* ── Catch-all ── */}
-          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

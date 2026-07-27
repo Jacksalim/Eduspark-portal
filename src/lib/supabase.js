@@ -97,7 +97,13 @@ export async function getProfile(userId) {
   return data
 }
 
-// ─── Videos ───────────────────────────────────────────────────────────────────
+export async function updateProfile(userId, fields) {
+  const { error } = await supabase.from('profiles')
+    .update({ ...fields, updated_at: new Date().toISOString() }).eq('id', userId)
+  if (error) throw error
+}
+
+// ─── Videos ──────────────────────────────────────────────────────────────────
 export async function fetchVideos({ subject, grade } = {}) {
   let q = supabase.from('videos').select('*').order('created_at', { ascending: false })
   if (subject) q = q.eq('subject', subject)
@@ -119,15 +125,22 @@ export async function deleteVideo(id) {
 }
 
 export async function markVideoWatched(videoId, userId) {
-  await supabase.from('video_watches').upsert({ video_id: videoId, user_id: userId, watched_at: new Date().toISOString() }, { onConflict: 'video_id,user_id' })
+  const { error } = await supabase.from('video_watches').upsert({ video_id: videoId, user_id: userId, watched_at: new Date().toISOString() }, { onConflict: 'video_id,user_id' })
+  if (error) {
+    console.warn('[video] Failed to mark video as watched:', error.message)
+  }
 }
 
 export async function fetchWatchedIds(userId) {
-  const { data } = await supabase.from('video_watches').select('video_id').eq('user_id', userId)
+  const { data, error } = await supabase.from('video_watches').select('video_id').eq('user_id', userId)
+  if (error) {
+    console.warn('[video] Failed to fetch watched IDs:', error.message)
+    return []
+  }
   return (data || []).map(r => r.video_id)
 }
 
-// ─── Quiz Results ─────────────────────────────────────────────────────────────
+// ─── Quiz Results ────────────────────────────────────────────────────────────
 export async function saveQuizResult({ userId, subject, grade, score, total }) {
   const percent = Math.round((score / total) * 100)
   const { data, error } = await supabase.from('quiz_results').insert({ user_id: userId, subject, grade, score, total, percent }).select().single()
@@ -167,9 +180,16 @@ export async function fetchLeaderboard(subject, grade) {
 
 // ─── Progress ─────────────────────────────────────────────────────────────────
 async function upsertProgress(userId, subject, percent) {
-  const { data: ex } = await supabase.from('progress').select('percent').eq('user_id', userId).eq('subject', subject).single()
+  const { data: ex, error: selectError } = await supabase.from('progress').select('percent').eq('user_id', userId).eq('subject', subject).maybeSingle()
+  if (selectError) {
+    console.warn('[progress] Failed to fetch existing progress:', selectError.message)
+    return
+  }
   const newPct = ex ? Math.round((ex.percent + percent) / 2) : percent
-  await supabase.from('progress').upsert({ user_id: userId, subject, percent: newPct, updated_at: new Date().toISOString() }, { onConflict: 'user_id,subject' })
+  const { error: upsertError } = await supabase.from('progress').upsert({ user_id: userId, subject, percent: newPct, updated_at: new Date().toISOString() }, { onConflict: 'user_id,subject' })
+  if (upsertError) {
+    console.warn('[progress] Failed to upsert progress:', upsertError.message)
+  }
 }
 
 export async function fetchProgress(userId) {
@@ -225,7 +245,10 @@ export async function unlinkChild(learnerId) {
 
 // ─── Visits ───────────────────────────────────────────────────────────────────
 export async function logVisit(page, userId) {
-  await supabase.from('visits').insert({ page, user_id: userId || null, visited_at: new Date().toISOString() })
+  const { error } = await supabase.from('visits').insert({ page, user_id: userId || null, visited_at: new Date().toISOString() })
+  if (error) {
+    console.warn('[visits] Failed to log visit:', error.message)
+  }
 }
 
 export async function fetchVisits() {
@@ -245,32 +268,37 @@ export async function fetchVisitStats() {
     total: totalResult?.count ?? 0
   }
 }
-// ════════════════════════════════════════════════════════════════════════════
-// ADD THESE TO src/lib/supabase.js
-// Paste at the end of the file (after the existing fetchVisitStats function).
-// ════════════════════════════════════════════════════════════════════════════
 
-// ─── Topic Progress (drives promotion threshold) ───────────────────────────────
+// ─── Topic Progress (drives promotion threshold) ────────────────────────────
 
 // Call this after a quiz is scored, once per topic that appeared in the quiz.
 // percent = the learner's score % on questions for that specific topic in this attempt.
 export async function recordTopicProgress({ userId, subject, grade, topic, percent }) {
-  const { data: existing } = await supabase
+  const { data: existing, error: fetchError } = await supabase
     .from('topic_progress')
     .select('*')
     .eq('user_id', userId).eq('subject', subject).eq('grade', grade).eq('topic', topic)
     .maybeSingle()
+
+  if (fetchError) {
+    console.warn('[topic-progress] Failed to fetch existing progress:', fetchError.message)
+    return
+  }
 
   const attempts = (existing?.attempts || 0) + 1
   const bestPercent = Math.max(existing?.best_percent || 0, percent)
   // A topic is "covered" once the learner has scored 70%+ on it at least once.
   const covered = existing?.covered || percent >= 70
 
-  await supabase.from('topic_progress').upsert({
+  const { error: upsertError } = await supabase.from('topic_progress').upsert({
     user_id: userId, subject, grade, topic,
     attempts, best_percent: bestPercent, covered,
     last_attempt_at: new Date().toISOString(),
   }, { onConflict: 'user_id,subject,grade,topic' })
+
+  if (upsertError) {
+    console.warn('[topic-progress] Failed to record progress:', upsertError.message)
+  }
 }
 
 export async function fetchTopicProgress(userId, grade) {
@@ -281,7 +309,7 @@ export async function fetchTopicProgress(userId, grade) {
   return data || []
 }
 
-// ─── Promotion Eligibility & Decisions ─────────────────────────────────────────
+// ─── Promotion Eligibility & Decisions ────────────────────────────────────────
 
 // Computes the combined threshold: quiz average + % of topics covered for the
 // learner's current grade. Used by the admin Promotions screen.
@@ -337,7 +365,7 @@ export async function fetchPromotionHistory(userId) {
   return data || []
 }
 
-// ─── Study Materials (Notes + Revision / Past Papers) ──────────────────────────
+// ─── Study Materials (Notes + Revision / Past Papers) ────────────────────────
 
 export async function fetchStudyMaterials({ type, subject, grade, topic } = {}) {
   let q = supabase.from('study_materials').select('*').order('created_at', { ascending: false })

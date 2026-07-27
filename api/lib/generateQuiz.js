@@ -1,8 +1,8 @@
 // api/lib/generateQuiz.js
-// ─────────────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
 // Multi-provider quiz generation with full variation system
 // Primary: Google Gemini | Fallback: Anthropic Claude
-// ─────────────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
 
 import {
   buildPrompt, withTimeout, extractJSON, validateQuiz, shuffleOptions,
@@ -11,7 +11,7 @@ import {
   log, MAX_RETRIES, TIMEOUT_MS,
 } from './aiProvider.js'
 
-// ── Pick variation parameters for this request ────────────────────────────────
+// ── Pick variation parameters for this request ──────────────────────��─────────
 function buildVariationParams(grade, subject, options = {}) {
   const { difficulty = 'mixed', recentQuestions = [], topicHints = [] } = options
 
@@ -44,7 +44,7 @@ function deduplicateQuestions(newQuestions, recentQuestions) {
   })
 }
 
-// ── GEMINI provider ───────────────────────────────────────────────────────────
+// ── GEMINI provider ────────────────────────────────────────────────────────────
 async function callGemini(grade, subject, params, attempt) {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
@@ -109,7 +109,7 @@ async function callGemini(grade, subject, params, attempt) {
   return { questions: finalQuestions, provider: 'gemini', model: 'gemini-2.5-flash', topics: params.topics, difficulty: params.difficulty }
 }
 
-// ── ANTHROPIC provider ────────────────────────────────────────────────────────
+// ── ANTHROPIC provider ─────────────────────────────────────────────────────────
 async function callAnthropic(grade, subject, params, attempt) {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
@@ -162,7 +162,7 @@ async function callAnthropic(grade, subject, params, attempt) {
   return { questions: finalQuestions, provider: 'anthropic', model: 'claude-sonnet-4-6', topics: params.topics, difficulty: params.difficulty }
 }
 
-// ── Retry wrapper with exponential backoff ────────────────────────────────────
+// ── Retry wrapper with exponential backoff ─────────────────────────────────────
 async function withRetry(fn, label, maxRetries = MAX_RETRIES) {
   let lastError
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
@@ -184,7 +184,7 @@ async function withRetry(fn, label, maxRetries = MAX_RETRIES) {
   throw lastError
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
+// ── Main export ────────────────────────────────────────────────────────────────
 export async function generateQuiz(grade, subject, options = {}) {
   const startTime = Date.now()
   const errors    = {}
@@ -209,7 +209,13 @@ export async function generateQuiz(grade, subject, options = {}) {
       )
       log.ok(`Quiz ready in ${Date.now() - startTime}ms via Gemini`)
       const deduplicated = deduplicateQuestions(result.questions, options.recentQuestions)
-      if (deduplicated.length >= 3) result.questions = deduplicated.slice(0, 5)
+      // Only apply deduplication if we have at least 5 questions remaining (to ensure at least 5 after slice)
+      if (deduplicated.length >= 5) {
+        result.questions = deduplicated.slice(0, 5)
+      } else if (deduplicated.length >= 3) {
+        // If deduplication reduced questions to 3-4, keep all remaining questions
+        result.questions = deduplicated
+      }
       return result
     } catch (err) {
       errors.gemini = err.message
@@ -229,7 +235,13 @@ export async function generateQuiz(grade, subject, options = {}) {
       )
       log.ok(`Quiz ready in ${Date.now() - startTime}ms via Anthropic`)
       const deduplicated = deduplicateQuestions(result.questions, options.recentQuestions)
-      if (deduplicated.length >= 3) result.questions = deduplicated.slice(0, 5)
+      // Only apply deduplication if we have at least 5 questions remaining (to ensure at least 5 after slice)
+      if (deduplicated.length >= 5) {
+        result.questions = deduplicated.slice(0, 5)
+      } else if (deduplicated.length >= 3) {
+        // If deduplication reduced questions to 3-4, keep all remaining questions
+        result.questions = deduplicated
+      }
       return result
     } catch (err) {
       errors.anthropic = err.message

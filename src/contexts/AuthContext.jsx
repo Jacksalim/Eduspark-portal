@@ -21,7 +21,8 @@ export function AuthProvider({ children }) {
     try {
       const data = await getProfile(userId)
       setProfile(data ?? null)
-    } catch {
+    } catch (err) {
+      console.warn('[auth] Failed to load profile for user:', userId, err?.message)
       setProfile(null)
     }
   }, [])
@@ -40,7 +41,9 @@ export function AuthProvider({ children }) {
       .then(({ data: { session } }) => {
         if (cancelled) return
         setSession(session)
-        return loadProfile(session?.user?.id)
+        if (session?.user?.id) {
+          return loadProfile(session.user.id)
+        }
       })
       .catch((err) => {
         console.warn('[auth] getSession failed, treating as signed out:', err?.message)
@@ -54,19 +57,28 @@ export function AuthProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (cancelled) return
-        // PASSWORD_RECOVERY: user clicked the reset link in their email.
-        // Set session so updatePassword() works, but route to /reset-password.
-        if (event === 'PASSWORD_RECOVERY') {
-          setSession(session)
-          setLoading(false)
-          if (typeof window !== 'undefined') {
-            window.location.replace('/reset-password')
+        try {
+          // PASSWORD_RECOVERY: user clicked the reset link in their email.
+          // Set session so updatePassword() works, but route to /reset-password.
+          if (event === 'PASSWORD_RECOVERY') {
+            setSession(session)
+            setLoading(false)
+            if (typeof window !== 'undefined') {
+              window.location.replace('/reset-password')
+            }
+            return
           }
-          return
+          setSession(session)
+          if (session?.user?.id) {
+            await loadProfile(session.user.id)
+          } else {
+            setProfile(null)
+          }
+          setLoading(false)
+        } catch (err) {
+          console.warn('[auth] Error in onAuthStateChange:', err?.message)
+          setLoading(false)
         }
-        setSession(session)
-        await loadProfile(session?.user?.id)
-        setLoading(false)
       }
     )
 
@@ -83,7 +95,8 @@ export function AuthProvider({ children }) {
       const data = await getProfile(session.user.id)
       setProfile(data ?? null)
       return data
-    } catch {
+    } catch (err) {
+      console.warn('[auth] Failed to refresh profile:', err?.message)
       return null
     }
   }

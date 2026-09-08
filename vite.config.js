@@ -1,116 +1,76 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'node:path'
 
-// ── Local development quiz API plugin ─────────────────────────────────────────
-// Mirrors api/quiz.js so the AI Quiz works with `npm run dev` — no vercel dev needed.
-const devQuizApiPlugin = () => ({
-  name: 'dev-quiz-api',
-  configureServer(server) {
-    server.middlewares.use('/api/quiz', (req, res) => {
-      if (req.method === 'OPTIONS') {
-        res.writeHead(200); res.end(); return
-      }
-      if (req.method !== 'POST') {
-        res.writeHead(405, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'Method not allowed' }))
-        return
-      }
-
-      let body = ''
-      req.on('data', chunk => { body += chunk.toString() })
-      req.on('end', async () => {
-        const send = (status, obj) => {
-          res.writeHead(status, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify(obj))
-        }
-
-        try {
-          let parsed
-          try { parsed = JSON.parse(body) }
-          catch { send(400, { error: 'Invalid JSON body' }); return }
-
-          // Delegate to the production handler so dev and prod are identical
-          const { default: handler } = await import('./api/quiz.js')
-          const mockReq = {
-            method: 'POST',
-            body: parsed,
-            headers: { 'content-type': 'application/json' },
-          }
-          let statusCode = 200
-          let responseBody = null
-          const mockRes = {
-            setHeader() { return this },
-            status(s) { statusCode = s; return this },
-            json(b) { responseBody = b; return this },
-            end() { return this },
-          }
-          await handler(mockReq, mockRes)
-          send(statusCode, responseBody || {})
-        } catch (err) {
-          send(500, { error: err.message })
-        }
-      })
-    })
-  }
-})
-
-// ── Local development send-email plugin ───────────────────────────────────────
-// Mirrors api/send-email.js so welcome emails can be tested locally.
-const devSendEmailPlugin = () => ({
-  name: 'dev-send-email',
-  configureServer(server) {
-    server.middlewares.use('/api/send-email', (req, res) => {
-      if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return }
-      if (req.method !== 'POST') {
-        res.writeHead(405, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'Method not allowed' })); return
-      }
-
-      let body = ''
-      req.on('data', chunk => { body += chunk.toString() })
-      req.on('end', async () => {
-        const send = (status, obj) => {
-          res.writeHead(status, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify(obj))
-        }
-
-        const apiKey = process.env.RESEND_API_KEY
-        if (!apiKey) {
-          console.warn('[dev-send-email] RESEND_API_KEY not set — skipping email (non-fatal in dev)')
-          send(200, { success: false, error: 'RESEND_API_KEY not set — email skipped in local dev' })
+function devApiPlugin(route, modulePath) {
+  return {
+    name: `dev-${route.replaceAll('/', '-')}-api`,
+    configureServer(server) {
+      server.middlewares.use(route, (req, res) => {
+        if (req.method === 'OPTIONS') {
+          res.writeHead(200)
+          res.end()
           return
         }
 
-        try {
-          let payload
-          try { payload = JSON.parse(body) }
-          catch { send(400, { error: 'Invalid JSON' }); return }
-
-          const { default: handler } = await import('./api/send-email.js')
-          const mockReq = { method: 'POST', body: payload }
-          const mockRes = {
-            _status: 200, _body: null,
-            status(s) { this._status = s; return this },
-            json(b) { this._body = b; return this },
-            setHeader() { return this },
-            end() { return this },
+        let body = ''
+        req.on('data', chunk => {
+          body += chunk.toString()
+          if (body.length > 1024 * 1024) req.destroy()
+        })
+        req.on('end', async () => {
+          const send = (status, headers, payload) => {
+            res.writeHead(status, { 'Content-Type': 'application/json', ...headers })
+            if (payload === undefined) res.end()
+            else res.end(JSON.stringify(payload))
           }
-          await handler(mockReq, mockRes)
-          send(mockRes._status, mockRes._body || { success: true })
-        } catch (err) {
-          console.warn('[dev-send-email] Error:', err.message)
-          send(200, { success: false, error: err.message })
-        }
+
+          let payload = {}
+          try {
+            payload = body ? JSON.parse(body) : {}
+          } catch {
+            send(400, {}, { error: 'Invalid JSON in request body' })
+            return
+          }
+
+          try {
+            const { default: handler } = await import(modulePath)
+            const mockReq = {
+              method: req.method,
+              body: payload,
+              headers: req.headers,
+            }
+            const mockRes = {
+              _status: 200,
+              _body: undefined,
+              _headers: {},
+              status(status) { this._status = status; return this },
+              json(value) { this._body = value; return this },
+              setHeader(name, value) { this._headers[name] = value; return this },
+              end() { this._ended = true; return this },
+            }
+
+            await handler(mockReq, mockRes)
+            send(mockRes._status, mockRes._headers, mockRes._body)
+          } catch (error) {
+            console.warn(`[${route}] Error:`, error.message)
+            send(500, {}, { error: 'Internal API error' })
+          }
+        })
       })
-    })
+    },
   }
-})
+}
 
 export default defineConfig({
-  plugins: [react(), devQuizApiPlugin(), devSendEmailPlugin()],
+  plugins: [
+    react(),
+    devApiPlugin('/api/quiz', path.resolve(process.cwd(), 'api/quiz.js')),
+    devApiPlugin('/api/send-email', path.resolve(process.cwd(), 'api/send-email.js')),
+  ],
   server: {
     allowedHosts: true,
     host: '0.0.0.0',
     port: 5000,
-  }
+  },
 })

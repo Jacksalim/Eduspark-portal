@@ -7,13 +7,11 @@ export const TIMEOUT_MS = 25000
 export const MAX_RETRIES = 2
 
 export const SUPPORTED_SUBJECTS = [
-  'Mathematics', 'English', 'Science', 'Social Studies',
-  'ICT', 'Life Skills', 'History', 'Geography',
-  // Subjects used in the frontend SUBJECTS map:
+  'Mathematics', 'English', 'History', 'Geography',
   'Business Studies', 'Natural Sciences', 'Life Orientation',
   'Technology', 'Accounting', 'Physical Sciences',
 ]
-export const SUPPORTED_GRADES = Array.from({ length: 12 }, (_, i) => i + 1)
+export const SUPPORTED_GRADES = ['R', ...Array.from({ length: 12 }, (_, i) => String(i + 1))]
 
 // ── Topic banks per subject (CBC-aligned) ────────────────────────────────────
 export const TOPIC_BANKS = {

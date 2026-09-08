@@ -67,7 +67,7 @@ export async function generateProgressReport({ child, progress, quizzes }) {
   doc.setTextColor(...WHITE)
   doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
-  doc.text(child.name || 'Learner', margin + 8, y + 9)
+  doc.text(child.full_name || 'Student', margin + 8, y + 9)
 
   doc.setFontSize(8.5)
   doc.setFont('helvetica', 'normal')
@@ -202,6 +202,6 @@ export async function generateProgressReport({ child, progress, quizzes }) {
     doc.text(`Page ${i} of ${pageCount}`, W - margin, 291, { align: 'right' })
   }
 
-  const filename = `EduSpark_Report_${(child.name || 'Learner').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`
+  const filename = `EduSpark_Report_${(child.full_name || 'Student').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`
   doc.save(filename)
 }

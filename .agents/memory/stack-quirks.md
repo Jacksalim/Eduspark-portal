@@ -15,3 +15,10 @@ framer-motion@11 is now installed. Use `motion`, `AnimatePresence`, `useInView` 
 
 ## Build verification
 `npm run build` must complete with 0 errors. The chunk size warning for jspdf (>500KB) is expected and harmless.
+
+## Vite API adapters
+Local Vite API adapters should resolve shared server handlers with `path.resolve(process.cwd(), ...)`, not a relative dynamic import.
+
+**Why:** Vite evaluates the config from `.vite-temp`, so relative imports can resolve under `node_modules/.vite-temp` and return a misleading 500.
+
+**How to apply:** Keep local `/api/*` handlers delegated to the production modules, but use workspace-absolute module paths in `vite.config.js`.

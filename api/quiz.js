@@ -6,12 +6,15 @@
 import { generateQuiz } from './lib/generateQuiz.js'
 import {
   checkProviderKeys, log, validateInput, logProviderHealth,
-  SUPPORTED_SUBJECTS, DIFFICULTIES,
+  SUPPORTED_SUBJECTS, SUPPORTED_GRADES, DIFFICULTIES,
 } from './lib/aiProvider.js'
+import { authenticateRequest } from './lib/auth.js'
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET')
+  const origin = process.env.APP_URL || process.env.VITE_APP_URL
+  if (origin) res.setHeader('Access-Control-Allow-Origin', origin)
+  res.setHeader('Vary', 'Origin')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
 
@@ -19,6 +22,9 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed', allowed: ['POST'] })
   }
+
+  const auth = await authenticateRequest(req, ['student', 'tutor', 'admin'])
+  if (!auth.ok) return res.status(auth.status).json({ error: auth.error })
 
   let body = req.body
   if (typeof body === 'string') {
@@ -36,7 +42,7 @@ export default async function handler(req, res) {
     return res.status(400).json({
       error: 'Invalid input',
       details: validation.errors,
-      supported: { grades: '1-12', subjects: SUPPORTED_SUBJECTS },
+      supported: { grades: SUPPORTED_GRADES, subjects: SUPPORTED_SUBJECTS },
     })
   }
 
@@ -90,12 +96,8 @@ export default async function handler(req, res) {
     const duration = Date.now() - startTime
     log.error(`All providers failed after ${duration}ms`, { error: err.message })
 
-    let providerErrors = { detail: err.message }
-    try { providerErrors = JSON.parse(err.message) } catch { /* ok */ }
-
     return res.status(502).json({
       error: 'Quiz generation failed. Please try again in a moment.',
-      providers: providerErrors,
       responseTime: `${duration}ms`,
       timestamp: new Date().toISOString(),
     })

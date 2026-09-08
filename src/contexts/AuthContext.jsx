@@ -4,11 +4,19 @@ import { supabase, getProfile } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
-// Normalise role: existing DB uses 'learner'; new system uses 'student'
-// Both are treated as student-level access
 function normaliseRole(role) {
   if (role === 'learner') return 'student'
-  return role ?? 'student'
+  return role ?? null
+}
+
+async function fetchProfile(userId) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single()
+  if (error) throw error
+  return data
 }
 
 export function AuthProvider({ children }) {
@@ -19,76 +27,44 @@ export function AuthProvider({ children }) {
   const loadProfile = useCallback(async (userId) => {
     if (!userId) { setProfile(null); return }
     try {
-      const data = await getProfile(userId)
-      setProfile(data ?? null)
+      const data = await fetchProfile(userId)
+      setProfile(data)
     } catch {
       setProfile(null)
     }
   }, [])
 
   useEffect(() => {
-    let cancelled = false
-
-    // Safety net: if Supabase's getSession() ever hangs or rejects without
-    // us catching it, this guarantees the loading screen still clears after
-    // 5s instead of trapping the user on "Verifying access…" forever.
-    const safetyTimer = setTimeout(() => {
-      if (!cancelled) setLoading(false)
-    }, 5000)
-
-    supabase.auth.getSession()
-      .then(({ data: { session } }) => {
-        if (cancelled) return
-        setSession(session)
-        return loadProfile(session?.user?.id)
-      })
-      .catch((err) => {
-        console.warn('[auth] getSession failed, treating as signed out:', err?.message)
-        if (!cancelled) setSession(null)
-      })
-      .finally(() => {
-        clearTimeout(safetyTimer)
-        if (!cancelled) setLoading(false)
-      })
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      loadProfile(session?.user?.id).finally(() => setLoading(false))
+    })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (cancelled) return
-        // PASSWORD_RECOVERY: user clicked the reset link in their email.
-        // Set session so updatePassword() works, but route to /reset-password.
-        if (event === 'PASSWORD_RECOVERY') {
-          setSession(session)
-          setLoading(false)
-          if (typeof window !== 'undefined') {
-            window.location.replace('/reset-password')
-          }
-          return
-        }
+      async (_event, session) => {
         setSession(session)
         await loadProfile(session?.user?.id)
         setLoading(false)
       }
     )
-
-    return () => {
-      cancelled = true
-      clearTimeout(safetyTimer)
-      subscription.unsubscribe()
-    }
+    return () => subscription.unsubscribe()
   }, [loadProfile])
 
   const refreshProfile = async () => {
-    if (!session?.user?.id) return null
+    if (!session?.user?.id) {
+      setProfile(null)
+      return null
+    }
     try {
       const data = await getProfile(session.user.id)
-      setProfile(data ?? null)
+      setProfile(data)
       return data
     } catch {
+      setProfile(null)
       return null
     }
   }
 
-  // role is normalised so 'learner' becomes 'student'
   const role = normaliseRole(profile?.role)
 
   const value = {

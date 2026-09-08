@@ -13,102 +13,104 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
-
-// Helper: fire-and-forget branded email via /api/send-email (non-blocking)
-function sendEmail(payload) {
-  fetch('/api/send-email', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).catch(err => console.warn('[email] send-email call failed (non-fatal):', err.message))
-}
-
-export async function signUp({ email, password, name, role, grade }) {
-  // emailRedirectTo tells Supabase where to send users after clicking the
-  // confirmation link in the verification email. Must be listed in:
-  //   Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
-  const emailRedirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
-
+export async function signUp({ email, password, fullName, phone = '', role = 'student', grade = null }) {
   const { data, error } = await supabase.auth.signUp({
-    email,
+    email: email.trim().toLowerCase(),
     password,
     options: {
-      data: { full_name: name, role, grade },
-      emailRedirectTo,
+      data: {
+        full_name: fullName.trim(),
+        phone: phone.trim() || null,
+        role: role === 'parent' ? 'parent' : 'student',
+        grade: role === 'student' ? grade : null,
+      },
+      emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
     },
   })
-  if (error) throw error
 
-  if (data.user) {
-    const dbRole = role === 'student' ? 'student' : role
-    const { error: pe } = await supabase
-      .from('profiles')
-      .insert({ id: data.user.id, full_name: name, role: dbRole, email, grade: grade || null })
-    if (pe) console.warn('Profile insert error:', pe.message)
-
-    // Send branded welcome email via Resend (non-blocking — won't break signup if it fails)
-    sendEmail({ type: 'welcome', to: email, name, role })
-  }
-
-  return data
+  // Profile creation is owned by handle_new_user() in 01_schema.sql.
+  return { data, error }
 }
 
 export async function signIn({ email, password }) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-  if (error) throw error
-  return data
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password,
+  })
+  return { data, error }
 }
 
 export async function signOut() {
-  await supabase.auth.signOut()
+  return supabase.auth.signOut()
 }
 
 export async function resetPassword(email) {
-  // redirectTo must be listed in Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
-  // Supabase appends #access_token=...&type=recovery to this URL so PasswordResetPage can intercept it.
   const redirectTo = typeof window !== 'undefined'
-    ? `${window.location.origin}/reset-password`
+    ? `${window.location.origin}/`
     : undefined
-
   const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo })
-  if (error) throw error
-}
-
-
-export async function sendMagicLink(email) {
-  // Signs in an existing user via a one-time email link — no password needed.
-  // shouldCreateUser: false means it won't silently create a new account.
-  const emailRedirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
-  const { error } = await supabase.auth.signInWithOtp({
-    email: email.trim(),
-    options: { emailRedirectTo, shouldCreateUser: false },
-  })
-  if (error) throw error
+  return { error }
 }
 
 export async function updatePassword(newPassword) {
   const { error } = await supabase.auth.updateUser({ password: newPassword })
-  if (error) throw error
+  return { error }
 }
 
 export async function getProfile(userId) {
-  const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single()
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single()
   if (error) throw error
   return data
 }
 
+export async function updateProfile(userId, fields) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({
+      full_name: fields.full_name?.trim(),
+      phone: fields.phone?.trim() || null,
+      avatar_url: fields.avatar_url?.trim() || null,
+    })
+    .eq('id', userId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function getAccessToken() {
+  const { data } = await supabase.auth.getSession()
+  return data.session?.access_token ?? null
+}
+
 // ─── Videos ───────────────────────────────────────────────────────────────────
 export async function fetchVideos({ subject, grade } = {}) {
-  let q = supabase.from('videos').select('*').order('created_at', { ascending: false })
-  if (subject) q = q.eq('subject', subject)
-  if (grade) q = q.eq('grade', grade)
-  const { data, error } = await q
+  let query = supabase
+    .from('videos')
+    .select('*')
+    .eq('is_published', true)
+    .order('created_at', { ascending: false })
+  if (subject) query = query.eq('subject', subject)
+  if (grade) query = query.eq('grade', grade)
+  const { data, error } = await query
   if (error) throw error
-  return data || []
+  return data ?? []
 }
 
 export async function uploadVideo({ title, subject, grade, topic, url, description, uploadedBy }) {
-  const { data, error } = await supabase.from('videos').insert({ title, subject, grade, topic, url, description, uploaded_by: uploadedBy }).select().single()
+  const { data, error } = await supabase
+    .from('videos')
+    .insert({
+      title, subject, grade, topic, url, description,
+      uploaded_by: uploadedBy,
+      is_published: true,
+    })
+    .select()
+    .single()
   if (error) throw error
   return data
 }
@@ -119,27 +121,50 @@ export async function deleteVideo(id) {
 }
 
 export async function markVideoWatched(videoId, userId) {
-  await supabase.from('video_watches').upsert({ video_id: videoId, user_id: userId, watched_at: new Date().toISOString() }, { onConflict: 'video_id,user_id' })
+  const { error } = await supabase
+    .from('video_watches')
+    .upsert(
+      { video_id: videoId, user_id: userId, watched_at: new Date().toISOString() },
+      { onConflict: 'video_id,user_id' }
+    )
+  if (error) throw error
 }
 
 export async function fetchWatchedIds(userId) {
-  const { data } = await supabase.from('video_watches').select('video_id').eq('user_id', userId)
-  return (data || []).map(r => r.video_id)
+  const { data, error } = await supabase
+    .from('video_watches')
+    .select('video_id')
+    .eq('user_id', userId)
+  if (error) throw error
+  return (data ?? []).map(row => row.video_id)
 }
 
-// ─── Quiz Results ─────────────────────────────────────────────────────────────
+// ─── Quiz results ─────────────────────────────────────────────────────────────
 export async function saveQuizResult({ userId, subject, grade, score, total }) {
+  if (!Number.isInteger(score) || !Number.isInteger(total) || total <= 0 || score < 0 || score > total) {
+    throw new Error('Invalid quiz score')
+  }
+
   const percent = Math.round((score / total) * 100)
-  const { data, error } = await supabase.from('quiz_results').insert({ user_id: userId, subject, grade, score, total, percent }).select().single()
+  const { data, error } = await supabase
+    .from('quiz_results')
+    .insert({ user_id: userId, subject, grade: String(grade), score, total, percent })
+    .select()
+    .single()
   if (error) throw error
   await upsertProgress(userId, subject, percent)
   return data
 }
 
 export async function fetchQuizResults(userId) {
-  const { data, error } = await supabase.from('quiz_results').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(20)
+  const { data, error } = await supabase
+    .from('quiz_results')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(20)
   if (error) throw error
-  return data || []
+  return data ?? []
 }
 
 export async function fetchLeaderboard(subject, grade) {
@@ -147,17 +172,16 @@ export async function fetchLeaderboard(subject, grade) {
     .from('quiz_results')
     .select('user_id, percent, score, total, created_at, profiles(full_name)')
     .eq('subject', subject)
-    .eq('grade', grade)
+    .eq('grade', String(grade))
     .order('percent', { ascending: false })
     .order('created_at', { ascending: true })
     .limit(200)
   if (error) throw error
 
-  // Keep only each user's best attempt, then take top 10
   const best = new Map()
-  for (const r of (data || [])) {
-    if (!best.has(r.user_id) || r.percent > best.get(r.user_id).percent) {
-      best.set(r.user_id, r)
+  for (const row of data ?? []) {
+    if (!best.has(row.user_id) || row.percent > best.get(row.user_id).percent) {
+      best.set(row.user_id, row)
     }
   }
   return [...best.values()]
@@ -165,202 +189,290 @@ export async function fetchLeaderboard(subject, grade) {
     .slice(0, 10)
 }
 
-// ─── Progress ─────────────────────────────────────────────────────────────────
+// ─── Progress ──────────────────────────────────────────────────────────────────
 async function upsertProgress(userId, subject, percent) {
-  const { data: ex } = await supabase.from('progress').select('percent').eq('user_id', userId).eq('subject', subject).single()
-  const newPct = ex ? Math.round((ex.percent + percent) / 2) : percent
-  await supabase.from('progress').upsert({ user_id: userId, subject, percent: newPct, updated_at: new Date().toISOString() }, { onConflict: 'user_id,subject' })
+  const { data: existing } = await supabase
+    .from('progress')
+    .select('percent')
+    .eq('user_id', userId)
+    .eq('subject', subject)
+    .maybeSingle()
+
+  const nextPercent = existing
+    ? Math.round((existing.percent + percent) / 2)
+    : percent
+
+  const { error } = await supabase
+    .from('progress')
+    .upsert(
+      { user_id: userId, subject, percent: nextPercent, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,subject' }
+    )
+  if (error) throw error
 }
 
 export async function fetchProgress(userId) {
-  const { data, error } = await supabase.from('progress').select('*').eq('user_id', userId)
+  const { data, error } = await supabase
+    .from('progress')
+    .select('*')
+    .eq('user_id', userId)
+    .order('subject')
   if (error) throw error
-  return data || []
+  return data ?? []
 }
 
-// ─── Admin ────────────────────────────────────────────────────────────────────
+// ─── Parent/student links ─────────────────────────────────────────────────────
 export async function fetchAllLearners() {
-  const { data, error } = await supabase.from('profiles').select('*').in('role', ['student', 'learner']).order('created_at', { ascending: false })
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('role', 'student')
+    .order('created_at', { ascending: false })
   if (error) throw error
-  return data || []
+  return data ?? []
 }
 
 export async function fetchChildrenForParent(parentId) {
   const { data, error } = await supabase
     .from('parent_student_links')
-    .select('*, student:profiles!parent_student_links_student_id_fkey(id, full_name, email, grade, avatar_url)')
+    .select('id, parent_id, student_id, status, relationship, created_at, student:profiles!parent_student_links_student_id_fkey(id, full_name, email, grade, avatar_url)')
     .eq('parent_id', parentId)
     .eq('status', 'approved')
+    .order('created_at', { ascending: false })
   if (error) throw error
-  return (data || []).map(l => l.student).filter(Boolean)
+  return (data ?? []).map(link => ({
+    ...(link.student ?? {}),
+    link_id: link.id,
+    link_status: link.status,
+    relationship: link.relationship,
+  }))
 }
 
 export async function findLearnerByEmail(email) {
+  const { data, error } = await supabase.rpc('find_student_by_email', {
+    target_email: email.trim().toLowerCase(),
+  })
+  if (error) throw error
+  if (!data?.length) throw new Error('Student not found')
+  return data[0]
+}
+
+export async function linkChildToParent(studentId, parentId, relationship = 'parent') {
   const { data, error } = await supabase
-    .from('profiles')
-    .select('id, full_name, grade, email')
-    .eq('email', email.trim().toLowerCase())
-    .in('role', ['student', 'learner'])
+    .from('parent_student_links')
+    .insert({ parent_id: parentId, student_id: studentId, relationship, status: 'pending' })
+    .select()
     .single()
   if (error) throw error
   return data
 }
 
-export async function linkChildToParent(learnerId, parentId) {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ parent_id: parentId })
-    .eq('id', learnerId)
-    .in('role', ['student', 'learner'])
+export async function unlinkChild(studentId, parentId) {
+  const { data: link, error: lookupError } = await supabase
+    .from('parent_student_links')
+    .select('id')
+    .eq('student_id', studentId)
+    .eq('parent_id', parentId)
+    .maybeSingle()
+  if (lookupError) throw lookupError
+  if (!link) return
+
+  const { error } = await supabase.rpc('unlink_parent_link', {
+    link_id: link.id,
+    requesting_parent_id: parentId,
+  })
   if (error) throw error
 }
 
-export async function unlinkChild(learnerId) {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ parent_id: null })
-    .eq('id', learnerId)
-  if (error) throw error
-}
-
-// ─── Visits ───────────────────────────────────────────────────────────────────
+// ─── Visits ────────────────────────────────────────────────────────────────────
 export async function logVisit(page, userId) {
-  await supabase.from('visits').insert({ page, user_id: userId || null, visited_at: new Date().toISOString() })
+  const { error } = await supabase
+    .from('visits')
+    .insert({
+      page,
+      user_id: userId || null,
+      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+    })
+  if (error) console.warn('[visits] Could not log visit:', error.message)
 }
 
 export async function fetchVisits() {
-  const { data, error } = await supabase.from('visits').select('*, profiles(full_name, role)').order('visited_at', { ascending: false }).limit(100)
+  const { data, error } = await supabase
+    .from('visits')
+    .select('*, profiles(full_name, role)')
+    .order('visited_at', { ascending: false })
+    .limit(100)
   if (error) throw error
-  return data || []
+  return data ?? []
 }
 
 export async function fetchVisitStats() {
   const today = new Date().toISOString().split('T')[0]
   const [todayResult, totalResult] = await Promise.all([
     supabase.from('visits').select('*', { count: 'exact', head: true }).gte('visited_at', today),
-    supabase.from('visits').select('*', { count: 'exact', head: true })
+    supabase.from('visits').select('*', { count: 'exact', head: true }),
   ])
-  return {
-    today: todayResult?.count ?? 0,
-    total: totalResult?.count ?? 0
-  }
+  return { today: todayResult.count ?? 0, total: totalResult.count ?? 0 }
 }
-// ════════════════════════════════════════════════════════════════════════════
-// ADD THESE TO src/lib/supabase.js
-// Paste at the end of the file (after the existing fetchVisitStats function).
-// ════════════════════════════════════════════════════════════════════════════
 
-// ─── Topic Progress (drives promotion threshold) ───────────────────────────────
+// ─── Notifications ────────────────────────────────────────────────────────────
+export async function getNotifications(userId) {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const id = userId || sessionData.session?.user?.id
+  if (!id) return { data: [], error: null }
+  const result = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', id)
+    .order('created_at', { ascending: false })
+    .limit(50)
+  return result
+}
 
-// Call this after a quiz is scored, once per topic that appeared in the quiz.
-// percent = the learner's score % on questions for that specific topic in this attempt.
+export async function markNotificationRead(id) {
+  return supabase.from('notifications').update({ is_read: true }).eq('id', id)
+}
+
+export async function markAllNotificationsRead(userId) {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const id = userId || sessionData.session?.user?.id
+  if (!id) return { data: [], error: null }
+  return supabase.from('notifications').update({ is_read: true }).eq('user_id', id).eq('is_read', false)
+}
+
+// ─── Topic progress and promotions ────────────────────────────────────────────
 export async function recordTopicProgress({ userId, subject, grade, topic, percent }) {
   const { data: existing } = await supabase
     .from('topic_progress')
     .select('*')
-    .eq('user_id', userId).eq('subject', subject).eq('grade', grade).eq('topic', topic)
+    .eq('user_id', userId)
+    .eq('subject', subject)
+    .eq('grade', String(grade))
+    .eq('topic', topic)
     .maybeSingle()
 
-  const attempts = (existing?.attempts || 0) + 1
-  const bestPercent = Math.max(existing?.best_percent || 0, percent)
-  // A topic is "covered" once the learner has scored 70%+ on it at least once.
-  const covered = existing?.covered || percent >= 70
-
-  await supabase.from('topic_progress').upsert({
-    user_id: userId, subject, grade, topic,
-    attempts, best_percent: bestPercent, covered,
+  const { error } = await supabase.from('topic_progress').upsert({
+    user_id: userId,
+    subject,
+    grade: String(grade),
+    topic,
+    attempts: (existing?.attempts ?? 0) + 1,
+    best_percent: Math.max(existing?.best_percent ?? 0, percent),
+    covered: existing?.covered || percent >= 70,
     last_attempt_at: new Date().toISOString(),
   }, { onConflict: 'user_id,subject,grade,topic' })
-}
-
-export async function fetchTopicProgress(userId, grade) {
-  let q = supabase.from('topic_progress').select('*').eq('user_id', userId)
-  if (grade) q = q.eq('grade', grade)
-  const { data, error } = await q
   if (error) throw error
-  return data || []
 }
 
-// ─── Promotion Eligibility & Decisions ─────────────────────────────────────────
-
-// Computes the combined threshold: quiz average + % of topics covered for the
-// learner's current grade. Used by the admin Promotions screen.
 export async function computePromotionEligibility(userId, grade) {
-  const [{ data: results }, { data: topics }] = await Promise.all([
-    supabase.from('quiz_results').select('percent').eq('user_id', userId).eq('grade', grade),
-    supabase.from('topic_progress').select('covered').eq('user_id', userId).eq('grade', grade),
+  const [{ data: results, error: resultsError }, { data: topics, error: topicsError }] = await Promise.all([
+    supabase.from('quiz_results').select('percent').eq('user_id', userId).eq('grade', String(grade)),
+    supabase.from('topic_progress').select('covered').eq('user_id', userId).eq('grade', String(grade)),
   ])
+  if (resultsError) throw resultsError
+  if (topicsError) throw topicsError
 
   const quizAverage = results?.length
-    ? Math.round(results.reduce((a, r) => a + r.percent, 0) / results.length)
+    ? Math.round(results.reduce((sum, row) => sum + row.percent, 0) / results.length)
     : 0
-
   const topicsCoveredPercent = topics?.length
-    ? Math.round((topics.filter(t => t.covered).length / topics.length) * 100)
+    ? Math.round((topics.filter(row => row.covered).length / topics.length) * 100)
     : 0
 
-  // Combined threshold: both must clear 65% to be promotion-eligible.
-  const eligible = quizAverage >= 65 && topicsCoveredPercent >= 65
-
-  return { quizAverage, topicsCoveredPercent, eligible, quizCount: results?.length || 0, topicCount: topics?.length || 0 }
+  return {
+    quizAverage,
+    topicsCoveredPercent,
+    eligible: quizAverage >= 65 && topicsCoveredPercent >= 65,
+    quizCount: results?.length ?? 0,
+    topicCount: topics?.length ?? 0,
+  }
 }
 
 function nextGrade(grade) {
-  if (grade === 'R') return '1'
-  const n = parseInt(grade, 10)
-  return n >= 12 ? null : String(n + 1) // null = already at the top (Grade 12)
+  if (String(grade) === 'R') return '1'
+  const number = Number.parseInt(grade, 10)
+  return number >= 12 ? null : String(number + 1)
 }
 
-export async function recordPromotionDecision({ userId, fromGrade, academicYear, quizAverage, topicsCoveredPercent, decision, decidedBy, notes }) {
-  const toGrade = decision === 'promoted' ? (nextGrade(fromGrade) || fromGrade) : fromGrade
-
-  const { data, error } = await supabase.from('promotions').insert({
-    user_id: userId, from_grade: fromGrade, to_grade: toGrade, academic_year: academicYear,
-    quiz_average: quizAverage, topics_covered_percent: topicsCoveredPercent,
-    decision, decided_by: decidedBy, notes: notes || null,
-  }).select().single()
+export async function recordPromotionDecision({
+  userId, fromGrade, academicYear, quizAverage, topicsCoveredPercent, decision, decidedBy, notes,
+}) {
+  const toGrade = decision === 'promoted' ? (nextGrade(fromGrade) || String(fromGrade)) : String(fromGrade)
+  const { data, error } = await supabase
+    .from('promotions')
+    .insert({
+      user_id: userId,
+      from_grade: String(fromGrade),
+      to_grade: toGrade,
+      academic_year: academicYear,
+      quiz_average: quizAverage,
+      topics_covered_percent: topicsCoveredPercent,
+      decision,
+      decided_by: decidedBy,
+      notes: notes || null,
+    })
+    .select()
+    .single()
   if (error) throw error
 
-  // Apply the grade change + bookkeeping to the learner's profile
-  await supabase.from('profiles').update({
-    grade: toGrade, current_academic_year: academicYear, last_promotion_id: data.id,
-  }).eq('id', userId)
-
+  const { error: updateError } = await supabase
+    .from('profiles')
+    .update({ grade: toGrade, current_academic_year: academicYear, last_promotion_id: data.id })
+    .eq('id', userId)
+  if (updateError) throw updateError
   return data
 }
 
 export async function fetchPromotionHistory(userId) {
   const { data, error } = await supabase
-    .from('promotions').select('*').eq('user_id', userId)
+    .from('promotions')
+    .select('*')
+    .eq('user_id', userId)
     .order('created_at', { ascending: false })
   if (error) throw error
-  return data || []
+  return data ?? []
 }
 
-// ─── Study Materials (Notes + Revision / Past Papers) ──────────────────────────
-
+// ─── Study materials ──────────────────────────────────────────────────────────
 export async function fetchStudyMaterials({ type, subject, grade, topic } = {}) {
-  let q = supabase.from('study_materials').select('*').order('created_at', { ascending: false })
-  if (type)    q = q.eq('type', type)
-  if (subject) q = q.eq('subject', subject)
-  if (grade)   q = q.eq('grade', grade)
-  if (topic)   q = q.eq('topic', topic)
-  const { data, error } = await q
+  let query = supabase.from('study_materials').select('*').order('created_at', { ascending: false })
+  if (type) query = query.eq('type', type)
+  if (subject) query = query.eq('subject', subject)
+  if (grade) query = query.eq('grade', String(grade))
+  if (topic) query = query.eq('topic', topic)
+  const { data, error } = await query
   if (error) throw error
-  return data || []
+  return data ?? []
 }
 
 export async function createStudyMaterial({ type, subject, grade, topic, title, year, content, createdBy }) {
-  const { data, error } = await supabase.from('study_materials').insert({
-    type, subject, grade, topic: topic || null, title, year: year || null, content, created_by: createdBy,
-  }).select().single()
+  if (type === 'note' && !topic?.trim()) throw new Error('Topic is required for notes')
+  if (type === 'past_paper' && !year?.trim()) throw new Error('Year is required for past papers')
+  const { data, error } = await supabase
+    .from('study_materials')
+    .insert({
+      type, subject, grade: String(grade), topic: topic?.trim() || null,
+      title: title.trim(), year: year?.trim() || null, content, created_by: createdBy,
+    })
+    .select()
+    .single()
   if (error) throw error
   return data
 }
 
 export async function updateStudyMaterial(id, fields) {
-  const { error } = await supabase.from('study_materials')
-    .update({ ...fields, updated_at: new Date().toISOString() }).eq('id', id)
+  if (fields.type === 'note' && !fields.topic?.trim()) throw new Error('Topic is required for notes')
+  if (fields.type === 'past_paper' && !fields.year?.trim()) throw new Error('Year is required for past papers')
+  const { error } = await supabase
+    .from('study_materials')
+    .update({
+      ...fields,
+      grade: String(fields.grade),
+      topic: fields.topic?.trim() || null,
+      year: fields.year?.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
   if (error) throw error
 }
 

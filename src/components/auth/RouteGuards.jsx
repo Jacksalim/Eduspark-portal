@@ -47,7 +47,7 @@ export function RequireRole({ roles, children }) {
 
 // ─── Convenience wrappers ─────────────────────────────────────────────────────
 export function RequireStudent({ children }) {
-  return <RequireRole roles={['student', 'tutor', 'admin']}>{children}</RequireRole>
+  return <RequireRole roles={['student']}>{children}</RequireRole>
 }
 
 export function RequireParent({ children }) {
@@ -74,7 +74,7 @@ export function RedirectIfAuth({ children }) {
       parent:  '/parent',
       student: '/student',
     }
-    return <Navigate to={dashboards[role] ?? '/student'} replace />
+    return <Navigate to={dashboards[role] ?? '/access-denied'} replace />
   }
   return children
 }

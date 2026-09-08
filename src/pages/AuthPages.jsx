@@ -1,10 +1,9 @@
 // src/pages/AuthPages.jsx
 import { useState } from 'react'
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { signIn, signUp, sendMagicLink } from '../lib/supabase'
+import { signIn, signUp } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { TermsAndConditions, PrivacyPolicy } from './PrivacyPolicy'
-import { GRADES } from '../components/ui.jsx'
 
 // ─── Login Page ───────────────────────────────────────────────────────────────
 
@@ -18,13 +17,6 @@ export default function LoginPage() {
   const [error,   setError]   = useState(null)
   const [loading, setLoading] = useState(false)
 
-  // Magic-link state
-  const [magicMode,    setMagicMode]    = useState(false)
-  const [magicEmail,   setMagicEmail]   = useState('')
-  const [magicSent,    setMagicSent]    = useState(false)
-  const [magicError,   setMagicError]   = useState(null)
-  const [magicLoading, setMagicLoading] = useState(false)
-
   const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
 
   const handleSubmit = async (e) => {
@@ -32,13 +24,8 @@ export default function LoginPage() {
     setError(null)
     setLoading(true)
 
-    try {
-      await signIn(form)
-    } catch (err) {
-      setError(err.message)
-      setLoading(false)
-      return
-    }
+    const { error } = await signIn(form)
+    if (error) { setError(error.message); setLoading(false); return }
 
     const profile = await refreshProfile()
     setLoading(false)
@@ -48,93 +35,22 @@ export default function LoginPage() {
     navigate(from ?? dashboards[role] ?? '/student', { replace: true })
   }
 
-  const handleMagicLink = async (e) => {
-    e.preventDefault()
-    setMagicError(null)
-    setMagicLoading(true)
-    try {
-      await sendMagicLink(magicEmail)
-      setMagicSent(true)
-    } catch (err) {
-      setMagicError(err.message)
-    }
-    setMagicLoading(false)
-  }
-
   return (
     <AuthShell title="Sign in to EduSpark">
-      {!magicMode ? (
-        <>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {error && <ErrorBanner message={error} />}
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {error && <ErrorBanner message={error} />}
 
-            <Field label="Email" name="email" type="email" value={form.email}
-              onChange={handleChange} required autoComplete="email" />
-            <Field label="Password" name="password" type="password" value={form.password}
-              onChange={handleChange} required autoComplete="current-password" />
+        <Field label="Email" name="email" type="email" value={form.email}
+          onChange={handleChange} required autoComplete="email" />
+        <Field label="Password" name="password" type="password" value={form.password}
+          onChange={handleChange} required autoComplete="current-password" />
 
-            <div style={{ textAlign: 'right', marginTop: -8 }}>
-              <Link to="/forgot-password" style={linkStyle}>Forgot password?</Link>
-            </div>
-
-            <SubmitButton loading={loading}>Sign in</SubmitButton>
-          </form>
-
-          <Divider />
-
-          <button
-            type="button"
-            onClick={() => { setMagicMode(true); setMagicEmail(form.email) }}
-            style={ghostButtonStyle}
-          >
-            ✉️ Email me a sign-in link instead
-          </button>
-        </>
-      ) : magicSent ? (
-        <div style={{ textAlign: 'center', padding: '16px 0' }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>📬</div>
-          <p style={{ color: '#374151', marginBottom: 6, fontWeight: 600 }}>Check your inbox</p>
-          <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 16 }}>
-            We sent a sign-in link to <strong>{magicEmail}</strong>.
-            Click it and you'll be logged in automatically — no password needed.
-          </p>
-          <button
-            type="button"
-            onClick={() => { setMagicSent(false); setMagicMode(false); setMagicError(null) }}
-            style={{ background: 'none', border: 'none', color: '#6366f1', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}
-          >
-            ← Back to sign in
-          </button>
+        <div style={{ textAlign: 'right', marginTop: -8 }}>
+          <Link to="/forgot-password" style={linkStyle}>Forgot password?</Link>
         </div>
-      ) : (
-        <>
-          <form onSubmit={handleMagicLink} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {magicError && <ErrorBanner message={magicError} />}
-            <p style={{ fontSize: 14, color: '#6b7280', margin: '0 0 4px' }}>
-              Enter your email and we'll send you a one-click sign-in link — no password required.
-            </p>
-            <Field
-              label="Your email"
-              name="magicEmail"
-              type="email"
-              value={magicEmail}
-              onChange={e => setMagicEmail(e.target.value)}
-              required
-            />
-            <SubmitButton loading={magicLoading}>Send sign-in link</SubmitButton>
-          </form>
 
-          <Divider />
-
-          <button
-            type="button"
-            onClick={() => { setMagicMode(false); setMagicError(null) }}
-            style={ghostButtonStyle}
-          >
-            ← Back to password sign in
-          </button>
-        </>
-      )}
+        <SubmitButton loading={loading}>Sign in</SubmitButton>
+      </form>
 
       <p style={{ textAlign: 'center', marginTop: 20, fontSize: 14, color: '#6b7280' }}>
         No account?{' '}
@@ -158,9 +74,10 @@ export function RegisterPage() {
   const [showTerms,     setShowTerms]     = useState(false)
   const [showPrivacy,   setShowPrivacy]   = useState(false)
   const [form, setForm] = useState({
-    fullName: '', email: '', phone: '', password: '', confirmPassword: '', relationship: 'Parent', grade: '',
+    fullName: '', email: '', phone: '', password: '', confirmPassword: '', relationship: 'Parent',
   })
   const [error,   setError]   = useState(null)
+  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
@@ -170,7 +87,6 @@ export function RegisterPage() {
     if (!form.email.trim())           return 'Email is required'
     if (form.password.length < 8)     return 'Password must be at least 8 characters'
     if (form.password !== form.confirmPassword) return 'Passwords do not match'
-    if (role === 'student' && !form.grade) return 'Please select your grade'
     if (!acceptedTerms)               return 'You must accept the Terms and Conditions to continue'
     return null
   }
@@ -180,21 +96,33 @@ export function RegisterPage() {
     const err = validate()
     if (err) { setError(err); return }
     setError(null); setLoading(true)
-    try {
-      await signUp({
-        email: form.email,
-        password: form.password,
-        name: form.fullName,
-        role,
-        grade: role === 'student' ? form.grade : null,
-      })
-      // Email confirmation is disabled — user is signed in immediately.
-      const dashboards = { admin: '/admin', tutor: '/tutor', parent: '/parent', student: '/student' }
-      navigate(dashboards[role] ?? '/student', { replace: true })
-    } catch (e) {
-      setError(e.message)
-      setLoading(false)
-    }
+    const { error } = await signUp({
+      email: form.email,
+      password: form.password,
+      fullName: form.fullName,
+      phone: form.phone,
+      role,
+    })
+    setLoading(false)
+    if (error) { setError(error.message); return }
+    setSuccess(true)
+  }
+
+  if (success) {
+    return (
+      <AuthShell title="Check your email">
+        <div style={{ textAlign: 'center', padding: '24px 0' }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>📧</div>
+          <p style={{ color: '#374151', marginBottom: 8 }}>
+            We sent a confirmation link to <strong>{form.email}</strong>.
+          </p>
+          <p style={{ fontSize: 14, color: '#6b7280' }}>
+            Click the link to activate your account, then{' '}
+            <Link to="/login" style={linkStyle}>sign in</Link>.
+          </p>
+        </div>
+      </AuthShell>
+    )
   }
 
   return (
@@ -204,7 +132,7 @@ export function RegisterPage() {
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         {['student', 'parent'].map(r => (
-          <button key={r} type="button" onClick={() => { setRole(r); if (r !== 'student') setForm(f => ({ ...f, grade: '' })) }} style={{
+          <button key={r} type="button" onClick={() => setRole(r)} style={{
             flex: 1, padding: '10px 0', borderRadius: 8, border: '1.5px solid',
             borderColor: role === r ? '#6366f1' : '#e5e7eb',
             background: role === r ? '#eef2ff' : 'white',
@@ -222,21 +150,6 @@ export function RegisterPage() {
         <Field label="Email" name="email" type="email" value={form.email} onChange={handleChange} required />
         <Field label="Phone (optional)" name="phone" type="tel" value={form.phone} onChange={handleChange} />
 
-        {role === 'student' && (
-          <div>
-            <label style={labelStyle}>Choose your grade *</label>
-            <select name="grade" value={form.grade} onChange={handleChange} required style={inputStyle}>
-              <option value="" disabled>Select grade…</option>
-              {GRADES.map(g => (
-                <option key={g} value={g}>{g === 'R' ? 'Grade R (Reception)' : `Grade ${g}`}</option>
-              ))}
-            </select>
-            <p style={{ fontSize: 12, color: '#9ca3af', margin: '4px 0 0' }}>
-              You'll be reviewed for promotion to the next grade at the end of each academic year.
-            </p>
-          </div>
-        )}
-
         {role === 'parent' && (
           <div>
             <label style={labelStyle}>Relationship to student</label>
@@ -252,6 +165,7 @@ export function RegisterPage() {
         <Field label="Password" name="password" type="password" value={form.password} onChange={handleChange} required />
         <Field label="Confirm password" name="confirmPassword" type="password" value={form.confirmPassword} onChange={handleChange} required />
 
+        {/* Terms & Conditions checkbox */}
         <div style={{
           display: 'flex', alignItems: 'flex-start', gap: 10,
           padding: '12px 14px', background: '#f9fafb', borderRadius: 8,
@@ -288,25 +202,10 @@ export function RegisterPage() {
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 
-const linkStyle      = { color: '#6366f1', textDecoration: 'none', fontWeight: 500 }
-const inlineLinkBtn  = { background: 'none', border: 'none', color: '#6366f1', fontWeight: 600, cursor: 'pointer', fontSize: 13, padding: 0 }
-const labelStyle     = { display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 5 }
-const inputStyle     = { width: '100%', padding: '9px 12px', borderRadius: 8, fontSize: 14, border: '1.5px solid #e5e7eb', outline: 'none', boxSizing: 'border-box', color: '#111827', background: 'white' }
-const ghostButtonStyle = {
-  width: '100%', padding: '10px 0', borderRadius: 8, border: '1.5px solid #e5e7eb',
-  background: 'white', color: '#374151', fontSize: 14, fontWeight: 500,
-  cursor: 'pointer', transition: 'border-color 0.2s, background 0.2s',
-}
-
-function Divider() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0' }}>
-      <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
-      <span style={{ fontSize: 12, color: '#9ca3af', userSelect: 'none' }}>or</span>
-      <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
-    </div>
-  )
-}
+const linkStyle    = { color: '#6366f1', textDecoration: 'none', fontWeight: 500 }
+const inlineLinkBtn = { background: 'none', border: 'none', color: '#6366f1', fontWeight: 600, cursor: 'pointer', fontSize: 13, padding: 0 }
+const labelStyle   = { display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 5 }
+const inputStyle   = { width: '100%', padding: '9px 12px', borderRadius: 8, fontSize: 14, border: '1.5px solid #e5e7eb', outline: 'none', boxSizing: 'border-box', color: '#111827', background: 'white' }
 
 function Field({ label, name, type = 'text', value, onChange, required, autoComplete }) {
   return (

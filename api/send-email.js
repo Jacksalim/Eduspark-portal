@@ -4,7 +4,18 @@
 //
 // Request body: { type, to, name, role, resetLink? }
 
+import { authenticateRequest } from './lib/auth.js'
+
 const FROM = process.env.RESEND_FROM_EMAIL || 'EduSpark <onboarding@resend.dev>'
+
+function escapeHtml(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
 
 // ─── HTML Email Templates ─────────────────────────────────────────────────────
 
@@ -104,7 +115,7 @@ function alertBox(text, bg = '#e6f5f5', border = '#1a6b6b') {
 
 // ── Template: Welcome (sent immediately after sign-up) ────────────────────────
 function welcomeTemplate({ name, role }) {
-  const firstName = (name || 'there').split(' ')[0]
+  const firstName = escapeHtml((name || 'there').split(' ')[0])
   const roleLabel = role === 'parent' ? 'Parent' : role === 'admin' ? 'Tutor / Admin' : 'Learner'
   const roleIcon  = role === 'parent' ? '👨‍👩‍👧' : role === 'admin' ? '🖥️' : '📚'
   const roleDesc  = role === 'parent'
@@ -147,9 +158,10 @@ ${alertBox(`<strong>📧 One more step:</strong> We've sent a confirmation email
 
 // ── Template: Email Confirmed / Account Activated ─────────────────────────────
 function confirmedTemplate({ name, role }) {
-  const firstName = (name || 'there').split(' ')[0]
-  const roleLabel = role === 'parent' ? 'Parent' : role === 'admin' ? 'Tutor / Admin' : 'Learner'
-  const appUrl = process.env.APP_URL || process.env.VITE_SUPABASE_URL?.replace(/supabase\.co.*/, '') || 'https://eduspark.vercel.app'
+  const firstName = escapeHtml((name || 'there').split(' ')[0])
+  const roleLabel = role === 'parent' ? 'Parent' : role === 'admin' ? 'Tutor / Admin' : role === 'tutor' ? 'Tutor' : 'Student'
+  const appUrl = process.env.APP_URL || process.env.VITE_APP_URL
+  if (!appUrl) throw new Error('APP_URL environment variable is not configured')
 
   const body = `
 <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:700;color:#1a2332;margin:0 0 8px;line-height:1.25;">
@@ -179,7 +191,8 @@ ${ctaButton(appUrl, 'Go to My Dashboard →')}
 
 // ── Template: Password Reset ───────────────────────────────────────────────────
 function resetTemplate({ name, resetLink }) {
-  const firstName = (name || 'there').split(' ')[0]
+  const firstName = escapeHtml((name || 'there').split(' ')[0])
+  const safeResetLink = resetLink ? escapeHtml(resetLink) : ''
 
   const body = `
 <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:700;color:#1a2332;margin:0 0 8px;line-height:1.25;">
@@ -189,13 +202,13 @@ function resetTemplate({ name, resetLink }) {
   Hi ${firstName}, we received a request to reset the password for your EduSpark account. Click the button below to choose a new password.
 </p>
 
-${ctaButton(resetLink || '#', 'Set New Password →', '#1a6b6b')}
+${ctaButton(safeResetLink || '#', 'Set New Password →', '#1a6b6b')}
 
-${alertBox(`<strong>⏱ This link expires in 1 hour.</strong> If you didn't request a password reset, you can safely ignore this email — your account remains secure.`, '#fff8e8', '#c9a84c')}
+  ${alertBox(`<strong>⏱ This link expires in 1 hour.</strong> If you didn't request a password reset, you can safely ignore this email — your account remains secure.`, '#fff8e8', '#c9a84c')}
 
 <p style="color:#9ca3af;font-size:13px;margin:20px 0 0;line-height:1.65;">
   If the button above doesn't work, paste this URL into your browser:<br/>
-  <span style="color:#1a6b6b;word-break:break-all;font-size:12px;">${resetLink || 'Link included in the Supabase confirmation email'}</span>
+  <span style="color:#1a6b6b;word-break:break-all;font-size:12px;">${safeResetLink || 'Link included in the Supabase confirmation email'}</span>
 </p>`
 
   return {
@@ -228,9 +241,11 @@ async function sendViaResend({ to, subject, html }) {
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
+  const origin = process.env.APP_URL || process.env.VITE_APP_URL
+  if (origin) res.setHeader('Access-Control-Allow-Origin', origin)
+  res.setHeader('Vary', 'Origin')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
 
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
@@ -240,18 +255,36 @@ export default async function handler(req, res) {
   if (!type || !to) {
     return res.status(400).json({ error: '`type` and `to` are required' })
   }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(to))) {
+    return res.status(400).json({ error: 'A valid recipient email is required' })
+  }
+  if (!['welcome', 'confirmed', 'reset'].includes(type)) {
+    return res.status(400).json({ error: 'Unknown email type' })
+  }
+
+  const auth = await authenticateRequest(req)
+  if (!auth.ok) return res.status(auth.status).json({ error: auth.error })
+
+  const isAdmin = auth.profile.role === 'admin'
+  if (!isAdmin && to.toLowerCase() !== auth.user.email?.toLowerCase()) {
+    return res.status(403).json({ error: 'You may only send email to your authenticated address' })
+  }
+
+  const canonicalRole = auth.profile.role
+  if (role && role !== canonicalRole && !isAdmin) {
+    return res.status(403).json({ error: 'Email role does not match authenticated profile' })
+  }
 
   console.log(`[send-email] type=${type} to=${to} name=${name}`)
 
   let template
   try {
-    if (type === 'welcome')   template = welcomeTemplate({ name, role })
-    else if (type === 'confirmed') template = confirmedTemplate({ name, role })
+    if (type === 'welcome')   template = welcomeTemplate({ name: name || auth.profile.full_name, role: canonicalRole })
+    else if (type === 'confirmed') template = confirmedTemplate({ name: name || auth.profile.full_name, role: canonicalRole })
     else if (type === 'reset')     template = resetTemplate({ name, resetLink })
-    else return res.status(400).json({ error: `Unknown email type: "${type}". Use welcome|confirmed|reset` })
   } catch (err) {
     console.error('[send-email] Template error:', err)
-    return res.status(500).json({ error: 'Template generation failed: ' + err.message })
+    return res.status(500).json({ error: 'Template generation failed' })
   }
 
   try {
@@ -260,7 +293,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, id: result.id, type, to })
   } catch (err) {
     console.error(`[send-email] ❌ Failed to send ${type} to ${to}:`, err.message)
-    // Return 200 so the frontend doesn't break — email failure is non-fatal
-    return res.status(200).json({ success: false, error: err.message, type, to })
+    return res.status(502).json({ success: false, error: 'Email provider unavailable' })
   }
 }

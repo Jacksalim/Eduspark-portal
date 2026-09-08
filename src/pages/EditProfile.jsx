@@ -10,7 +10,7 @@ export default function EditProfile() {
   const navigate = useNavigate()
 
   const [form, setForm] = useState({
-    full_name: profile?.full_name || profile?.name || '',
+    full_name: profile?.full_name || '',
     phone:     profile?.phone || '',
     avatar_url: profile?.avatar_url || '',
   })

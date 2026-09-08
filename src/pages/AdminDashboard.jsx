@@ -519,14 +519,12 @@ function DashboardShell({ role, profile, children }) {
           <span style={{ fontSize: 14, color: '#6b7280' }}>
             {profile?.full_name || profile?.email}
           </span>
-          <button onClick={() => navigate('/edit-profile')} style={{
+          <button onClick={handleSignOut} style={{
             padding: '6px 14px', background: '#f3f4f6', color: '#374151',
             border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer',
-          }}>✏️ Edit profile</button>
-          <button onClick={handleSignOut} style={{
-            padding: '6px 14px', background: '#fef2f2', color: '#dc2626',
-            border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer',
-          }}>Sign out</button>
+          }}>
+            Sign out
+          </button>
         </div>
       </header>
 

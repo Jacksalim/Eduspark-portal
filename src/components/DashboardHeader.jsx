@@ -3,7 +3,14 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { signOut } from '../lib/supabase'
 
-const ROLE_COLORS = { admin: '#7c3aed', tutor: '#0891b2', parent: '#059669', student: '#6366f1', learner: '#6366f1' }
+const ROLE_COLORS = { admin: '#7c3aed', tutor: '#0891b2', parent: '#059669', student: '#6366f1' }
+
+const ROLE_LABELS = {
+  admin: 'Administrator',
+  tutor: 'Tutor',
+  parent: 'Parent',
+  student: 'Learner', // UI label: student role → "Learner"
+}
 
 export default function DashboardHeader({ role, profile }) {
   const navigate = useNavigate()
@@ -23,7 +30,7 @@ export default function DashboardHeader({ role, profile }) {
     navigate('/login')
   }
 
-  const dashboardPath = { admin: '/admin', tutor: '/tutor', parent: '/parent', student: '/student', learner: '/student' }[role] || '/student'
+  const dashboardPath = { admin: '/admin', tutor: '/tutor', parent: '/parent', student: '/student' }[role] || '/student'
 
   return (
     <header style={{
@@ -47,7 +54,7 @@ export default function DashboardHeader({ role, profile }) {
           textTransform: 'capitalize', color: 'white',
           background: ROLE_COLORS[role] ?? '#6366f1',
         }}>
-          {role}
+          {ROLE_LABELS[role] || role}
         </span>
       </Link>
 

@@ -1,4 +1,10 @@
 // src/pages/dashboards/StudentDashboard.jsx
+// This component wraps LearnerPortal for users with role='student'.
+// Terminology note:
+//   - DB schema uses role='student' for consistency
+//   - UI labels use "Learner" as the friendly, user-facing term
+//   - This wrapper handles parent linking prompts before showing the learner portal
+
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'

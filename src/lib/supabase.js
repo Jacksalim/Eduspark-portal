@@ -12,7 +12,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// ─── Auth ─────────────────────────────────────────────────────────────────────
+// ─── Auth ───────────────────────────────────────────────────────────────────
 export async function signUp({ email, password, fullName, phone = '', role = 'student', grade = null }) {
   const { data, error } = await supabase.auth.signUp({
     email: email.trim().toLowerCase(),
@@ -28,7 +28,7 @@ export async function signUp({ email, password, fullName, phone = '', role = 'st
     },
   })
 
-  // Profile creation is owned by handle_new_user() in 01_schema.sql.
+  // Profile creation is owned by handle_new_user() in supabase/migrations/
   return { data, error }
 }
 
@@ -87,7 +87,7 @@ export async function getAccessToken() {
   return data.session?.access_token ?? null
 }
 
-// ─── Videos ───────────────────────────────────────────────────────────────────
+// ─── Videos ──────────────────────────────────────────────────────────────────
 export async function fetchVideos({ subject, grade } = {}) {
   let query = supabase
     .from('videos')
@@ -139,7 +139,7 @@ export async function fetchWatchedIds(userId) {
   return (data ?? []).map(row => row.video_id)
 }
 
-// ─── Quiz results ─────────────────────────────────────────────────────────────
+// ─── Quiz results ────────────────────────────────────────────────────────────
 export async function saveQuizResult({ userId, subject, grade, score, total }) {
   if (!Number.isInteger(score) || !Number.isInteger(total) || total <= 0 || score < 0 || score > total) {
     throw new Error('Invalid quiz score')
@@ -189,7 +189,7 @@ export async function fetchLeaderboard(subject, grade) {
     .slice(0, 10)
 }
 
-// ─── Progress ──────────────────────────────────────────────────────────────────
+// ─── Progress ────────────────────────────────────────────────────────────────
 async function upsertProgress(userId, subject, percent) {
   const { data: existing } = await supabase
     .from('progress')
@@ -221,7 +221,11 @@ export async function fetchProgress(userId) {
   return data ?? []
 }
 
-// ─── Parent/student links ─────────────────────────────────────────────────────
+// ─── Parent/student links ────────────────────────────────────────────────────
+/**
+ * Fetch all students (users with role='student').
+ * The function name "fetchAllLearners" is UI terminology; internally queries role='student'.
+ */
 export async function fetchAllLearners() {
   const { data, error } = await supabase
     .from('profiles')
@@ -231,6 +235,9 @@ export async function fetchAllLearners() {
   if (error) throw error
   return data ?? []
 }
+
+// Alias for naming consistency (DB schema uses 'student' role)
+export const fetchAllStudents = fetchAllLearners
 
 export async function fetchChildrenForParent(parentId) {
   const { data, error } = await supabase
@@ -284,7 +291,7 @@ export async function unlinkChild(studentId, parentId) {
   if (error) throw error
 }
 
-// ─── Visits ────────────────────────────────────────────────────────────────────
+// ─── Visits ──────────────────────────────────────────────────────────────────
 export async function logVisit(page, userId) {
   const { error } = await supabase
     .from('visits')
@@ -315,7 +322,7 @@ export async function fetchVisitStats() {
   return { today: todayResult.count ?? 0, total: totalResult.count ?? 0 }
 }
 
-// ─── Notifications ────────────────────────────────────────────────────────────
+// ─── Notifications ───────────────────────────────────────────────────────────
 export async function getNotifications(userId) {
   const { data: sessionData } = await supabase.auth.getSession()
   const id = userId || sessionData.session?.user?.id
@@ -340,7 +347,7 @@ export async function markAllNotificationsRead(userId) {
   return supabase.from('notifications').update({ is_read: true }).eq('user_id', id).eq('is_read', false)
 }
 
-// ─── Topic progress and promotions ────────────────────────────────────────────
+// ─── Topic progress and promotions ───────────────────────────────────────────
 export async function recordTopicProgress({ userId, subject, grade, topic, percent }) {
   const { data: existing } = await supabase
     .from('topic_progress')
@@ -433,7 +440,7 @@ export async function fetchPromotionHistory(userId) {
   return data ?? []
 }
 
-// ─── Study materials ──────────────────────────────────────────────────────────
+// ─── Study materials ─────────────────────────────────────────────────────────
 export async function fetchStudyMaterials({ type, subject, grade, topic } = {}) {
   let query = supabase.from('study_materials').select('*').order('created_at', { ascending: false })
   if (type) query = query.eq('type', type)

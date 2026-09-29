@@ -6,18 +6,16 @@ import {
 } from './components/auth/RouteGuards'
 
 // Auth pages
-import LoginPage              from './pages/AuthPages'
-import { RegisterPage }       from './pages/AuthPages'
-import { ForgotPasswordPage } from './pages/AccessDeniedPage'
-import AccessDeniedPage       from './pages/AccessDeniedPage'
-import TutorApplicationPage   from './pages/TutorApplicationPage'
-import PasswordResetPage      from './pages/PasswordResetPage'
+import { LoginPage, RegisterPage, ForgotPasswordPage } from './pages/AuthPage'
+import AccessDeniedPage from './pages/AccessDeniedPage'
+import TutorApplicationPage from './pages/TutorApplicationPage'
+import PasswordResetPage from './pages/PasswordResetPage'
 
 // Dashboards
 import StudentDashboard from './pages/dashboards/StudentDashboard'
-import ParentDashboard  from './pages/dashboards/ParentDashboard'
-import AdminDashboard   from './pages/dashboards/AdminDashboard'
-import TutorDashboard   from './pages/dashboards/TutorDashboard'
+import ParentDashboard from './pages/dashboards/ParentDashboard'
+import AdminDashboard from './pages/dashboards/AdminDashboard'
+import TutorDashboard from './pages/dashboards/TutorDashboard'
 
 // Public pages
 import Landing from './pages/Landing'
@@ -70,13 +68,13 @@ export default function App() {
           }/>
 
           {/* ── Legal (public) ── */}
-          <Route path="/privacy-policy"      element={<PrivacyPolicy />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
 
           {/* ── Company info (public, accessible from dashboard menus too) ── */}
-          <Route path="/about"    element={<AboutUs />} />
+          <Route path="/about" element={<AboutUs />} />
           <Route path="/services" element={<OurServices />} />
-          <Route path="/blog"     element={<Blog />} />
+          <Route path="/blog" element={<Blog />} />
 
           {/* ── Role dashboards ── */}
           <Route path="/student/*" element={
